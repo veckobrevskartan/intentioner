@@ -2318,3 +2318,5 @@ const EVENTS = [
 
   {country:'KP',cat:'DRONE',title:'Nordkorea anklagar Sydkorea för drönarintrång över DMZ – UAV skjuts ned nära Kaesong',place:'Kaesong, nära demilitariserade zonen (Nordkorea)',date:'2026-01-04',lat:37.9708,lng:126.5544,summary:'I början av januari 2026 anklagade Nordkorea Sydkorea för ett nytt intrång med obemannad luftfarkost över den demilitariserade zonen. Enligt nordkoreanska militära uppgifter spårades en drönare den 4 januari när den rörde sig norrut från området kring Ganghwa och därefter sköts ned nära Kaesong, flera kilometer in på nordkoreanskt territorium. KCNA uppgav senare att vrakdelar analyserats och att farkosten varit utrustad med övervakningsutrustning och lagrad videodata med bilder av gränsområden och andra så kallade viktiga mål. Sydkorea förnekade anklagelserna och uppgav att den visade drönaren inte motsvarade någon militär modell i bruk. Händelsen har lett till nationella säkerhetsmöten i Seoul och skärpta uttalanden från Kim Yo Jong, som krävt ansvar oavsett om intrånget varit militärt eller civilt.',url:'https://www.linkedin.com/feed/update/urn:li:activity:7416117352615931904'},
 ];
+window.EVENTS = EVENTS;
+
