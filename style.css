@@ -13,7 +13,6 @@
   --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
   --sans: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
 }
-
 *{box-sizing:border-box}
 html,body{height:100%}
 body{
@@ -24,7 +23,6 @@ body{
               radial-gradient(900px 700px at 80% 30%, rgba(92,225,182,.12), transparent 60%),
               var(--bg);
 }
-
 .topbar{
   position:sticky; top:0; z-index:10;
   display:flex; align-items:center; justify-content:space-between;
@@ -33,12 +31,10 @@ body{
   backdrop-filter: blur(10px);
   background: rgba(11,14,20,.65);
 }
-
 .brand{display:flex; align-items:center; gap:12px}
 .dot{width:14px;height:14px;border-radius:50%; background:var(--accent); box-shadow:0 0 0 6px rgba(122,162,255,.15)}
 .title{font-weight:800; letter-spacing:.12em}
 .subtitle{font-size:12px; color:var(--muted); margin-top:2px}
-
 .actions{display:flex; gap:10px; align-items:center; flex-wrap:wrap}
 .btn{
   appearance:none; border:1px solid var(--line); background: rgba(17,23,37,.65);
@@ -47,23 +43,19 @@ body{
 }
 .btn:hover{border-color:rgba(122,162,255,.55)}
 .btn.small{padding:7px 10px; border-radius:10px}
-.btn.danger{border-color:rgba(255,107,107,.5)}
-.btn.danger:hover{border-color:rgba(255,107,107,.9)}
 .filebtn input{display:none}
 
 .layout{
   display:grid;
-  grid-template-columns: 420px 1fr;
+  grid-template-columns: 520px 1fr;
   gap:16px;
   padding:16px;
-  max-width:1400px;
+  max-width:1600px;
   margin:0 auto;
 }
-
-@media (max-width: 1100px){
-  .layout{grid-template-columns:1fr; }
+@media (max-width: 1200px){
+  .layout{grid-template-columns:1fr;}
 }
-
 .card{
   background: rgba(17,23,37,.72);
   border:1px solid var(--line);
@@ -71,7 +63,6 @@ body{
   box-shadow: var(--shadow);
   padding:14px;
 }
-
 .cardhead{
   display:flex; align-items:center; justify-content:space-between;
   margin-bottom:10px;
@@ -84,14 +75,7 @@ body{
   border-radius:999px;
   color:var(--muted);
 }
-
-.grid2{display:grid; grid-template-columns:1fr 1fr; gap:10px; margin:8px 0 6px}
-.mini{border:1px solid var(--line); border-radius:14px; padding:10px}
-.mini .k{font-size:12px; color:var(--muted)}
-.mini .v{font-size:20px; font-weight:800; margin-top:2px}
-
-.controls{border-top:1px solid var(--line); margin-top:12px; padding-top:12px}
-.row{display:grid; grid-template-columns: 180px 1fr; align-items:center; gap:10px; margin:10px 0}
+.row{display:grid; grid-template-columns: 190px 1fr; align-items:center; gap:10px; margin:10px 0}
 .row.inline{grid-template-columns:1fr auto; gap:10px}
 label{font-size:12px; color:var(--muted)}
 select,input,textarea{
@@ -103,47 +87,61 @@ select,input,textarea{
   color:var(--fg);
   outline:none;
 }
-textarea{resize:vertical}
 .chk{display:flex; gap:10px; align-items:center}
 .chk input{width:auto}
-
+.range2{display:grid; grid-template-columns:1fr 1fr; gap:10px}
 .hint{font-size:12px; color:var(--muted); line-height:1.4; margin-top:10px}
 .smallmuted{font-size:12px; color:var(--muted); margin-top:8px; line-height:1.4}
-.footer{max-width:1400px;margin:0 auto; padding:10px 16px 22px; color:var(--muted); font-size:12px; display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap}
+.footer{max-width:1600px;margin:0 auto; padding:10px 16px 22px; color:var(--muted); font-size:12px; display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap}
 
-.canvas{min-height:520px}
-#graph{height:460px; border:1px dashed rgba(38,50,74,.8); border-radius:14px; overflow:hidden}
+.grid2{display:grid; grid-template-columns:1fr 1fr; gap:10px; margin:8px 0 6px}
+.mini{border:1px solid var(--line); border-radius:14px; padding:10px}
+.mini .k{font-size:12px; color:var(--muted)}
+.mini .v{font-size:20px; font-weight:800; margin-top:2px}
 
-.list{display:flex; flex-direction:column; gap:8px; margin-top:10px; max-height:260px; overflow:auto; padding-right:4px}
+.subgrid{display:grid; grid-template-columns: 1fr 380px; gap:12px; margin-top:10px}
+@media (max-width: 1200px){
+  .subgrid{grid-template-columns:1fr;}
+}
+.box{border:1px solid var(--line); border-radius:14px; padding:10px}
+.boxt{font-size:12px; color:var(--muted); margin-bottom:8px}
+
+.canvas{min-height:640px}
+#graph{height:560px; border:1px dashed rgba(38,50,74,.8); border-radius:14px; overflow:hidden}
+.list{display:flex; flex-direction:column; gap:8px; margin-top:10px; max-height:360px; overflow:auto; padding-right:4px}
 .item{
   border:1px solid var(--line);
   border-radius:14px;
   padding:10px;
   cursor:pointer;
-  display:flex;
-  justify-content:space-between;
-  gap:10px;
 }
 .item:hover{border-color:rgba(122,162,255,.55)}
-.item .name{font-weight:700; font-size:13px}
-.item .meta{font-size:12px; color:var(--muted); margin-top:3px}
+.item .t{font-weight:800; font-size:13px}
+.item .m{font-size:12px; color:var(--muted); margin-top:4px; line-height:1.35}
+.badges{display:flex; gap:8px; flex-wrap:wrap; margin-top:8px}
 .badge{
   font-size:11px;
   padding:4px 8px;
   border-radius:999px;
   border:1px solid var(--line);
   color:var(--muted);
-  height:fit-content;
   white-space:nowrap;
 }
+.detail{font-size:13px; line-height:1.5}
+.detail a{color:rgba(122,162,255,.95); text-decoration:none}
+.detail a:hover{text-decoration:underline}
+.detail code{font-family:var(--mono); font-size:12px; background:rgba(122,162,255,.10); padding:2px 6px; border-radius:8px}
 
-.editor{
-  margin-top:12px;
-  border-top:1px solid var(--line);
-  padding-top:12px;
+/* Fullscreen for graph card */
+.graphfs{
+  position: fixed !important;
+  inset: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  z-index: 999999 !important;
+  border-radius: 0 !important;
+  padding: 14px !important;
 }
-.editor h3{margin:0 0 8px; font-size:14px}
-.rangev{font-size:12px; color:var(--muted); margin-top:6px}
-code{font-family:var(--mono); font-size:12px; color:rgba(122,162,255,.95)}
-.doc p{margin:8px 0; color:var(--fg); line-height:1.5}
-.doc p code{background:rgba(122,162,255,.12); padding:2px 6px; border-radius:8px}
+.graphfs #graph{
+  height: calc(100vh - 120px) !important;
+}

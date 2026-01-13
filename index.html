@@ -3,134 +3,59 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>INTENTIONER – interaktiv modell</title>
+  <title>Svensk OSINT – Events → Intentioner (interaktiv)</title>
   <link rel="stylesheet" href="style.css" />
   <script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
-
-  <style>
-    /* Liten, fristående banner för felsökning / fallback */
-    .envbar{
-      position: sticky; top: 58px; z-index: 9;
-      display:none;
-      margin: 10px auto 0;
-      max-width: 1400px;
-      padding: 10px 12px;
-      border: 1px solid rgba(255,204,102,.35);
-      background: rgba(255,204,102,.10);
-      border-radius: 14px;
-      color: rgba(231,236,247,.92);
-      box-shadow: 0 10px 30px rgba(0,0,0,.25);
-    }
-    .envbar b{color: rgba(255,204,102,.95)}
-    .envbar .row{
-      display:flex; gap:10px; align-items:center; justify-content:space-between; flex-wrap:wrap;
-      margin: 0;
-    }
-    .envbar .left{display:flex; gap:10px; align-items:center; flex-wrap:wrap}
-    .envbar .right{display:flex; gap:10px; align-items:center; flex-wrap:wrap}
-    .envbar .mini{
-      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-      font-size: 12px;
-      padding: 6px 10px;
-      border-radius: 999px;
-      border: 1px solid rgba(38,50,74,.8);
-      background: rgba(11,14,20,.45);
-      color: rgba(138,151,178,.95);
-      white-space: nowrap;
-    }
-    .envbar .btn{
-      appearance:none; border:1px solid rgba(38,50,74,.9); background: rgba(17,23,37,.65);
-      color: rgba(231,236,247,.92); padding:9px 12px; border-radius:12px; cursor:pointer;
-      text-decoration:none; display:inline-flex; align-items:center; gap:8px;
-      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
-      font-size: 13px;
-    }
-    .envbar .btn:hover{border-color: rgba(255,204,102,.65)}
-    .envbar .btn.danger{border-color: rgba(255,107,107,.55)}
-    .envbar .btn.danger:hover{border-color: rgba(255,107,107,.95)}
-    .envbar input[type=file]{display:none}
-  </style>
 </head>
-
 <body>
   <header class="topbar">
     <div class="brand">
       <div class="dot"></div>
       <div>
-        <div class="title">INTENTIONER</div>
-        <div class="subtitle">Intentioner + Facilitering + Resurser + Tillfälle = Kapacitet</div>
+        <div class="title">EVENTS → INTENTIONER</div>
+        <div class="subtitle">Analys av EVENTS (veckobrevskartan) + kapacitetsmodell (Intentioner/Facilitering/Resurser/Tillfälle)</div>
       </div>
     </div>
 
     <div class="actions">
+      <button id="btnFS" class="btn">Helskärm (graf)</button>
       <button id="btnReset" class="btn">Återställ vy</button>
-      <button id="btnExport" class="btn">Exportera JSON</button>
+      <button id="btnExportModel" class="btn">Exportera intentioner-JSON</button>
+      <button id="btnExportEvents" class="btn">Exportera EVENTS-JSON</button>
       <label class="btn filebtn">
-        Importera JSON <input id="fileImport" type="file" accept="application/json" />
+        Importera EVENTS-JSON <input id="fileImportEvents" type="file" accept="application/json" />
       </label>
-      <a class="btn" id="btnDocs" href="#docs">Modellnoter</a>
     </div>
   </header>
-
-  <!-- Miljö-/felsökningsbanner (visas bara vid file:// eller om data.json inte går att hämta) -->
-  <div id="envbar" class="envbar" role="status" aria-live="polite">
-    <div class="row">
-      <div class="left">
-        <span><b>Obs:</b> sidan körs i ett läge där <code>fetch("data.json")</code> kan blockeras.</span>
-        <span class="mini" id="envUrl">–</span>
-        <span class="mini" id="envHint">–</span>
-      </div>
-
-      <div class="right">
-        <button id="btnTryReload" class="btn">Försök igen</button>
-
-        <label class="btn danger">
-          Ladda data.json manuellt
-          <input id="fileManual" type="file" accept="application/json" />
-        </label>
-      </div>
-    </div>
-  </div>
 
   <main class="layout">
     <section class="left">
       <div class="card">
         <div class="cardhead">
-          <h2>Översikt</h2>
-          <div class="pill" id="pillMode">Länkdiagram</div>
-        </div>
-
-        <div class="grid2">
-          <div class="mini">
-            <div class="k">Bästa</div>
-            <div class="v" id="capBest">–</div>
-          </div>
-          <div class="mini">
-            <div class="k">Troligast</div>
-            <div class="v" id="capLikely">–</div>
-          </div>
-          <div class="mini">
-            <div class="k">Värsta</div>
-            <div class="v" id="capWorst">–</div>
-          </div>
-          <div class="mini">
-            <div class="k">Antal fenomen</div>
-            <div class="v" id="phenCount">–</div>
-          </div>
+          <h2>Filter & styrning</h2>
+          <div class="pill">Live</div>
         </div>
 
         <div class="controls">
           <div class="row">
-            <label>Visa dimension</label>
-            <select id="selDimension"></select>
+            <label>Datumintervall</label>
+            <div class="range2">
+              <input id="dateFrom" type="date" />
+              <input id="dateTo" type="date" />
+            </div>
           </div>
 
           <div class="row">
-            <label>Scenario</label>
-            <select id="selScenario">
-              <option value="best">Bästa</option>
-              <option value="likely" selected>Troligast</option>
-              <option value="worst">Värsta</option>
+            <label>Kategori</label>
+            <select id="selCat">
+              <option value="ALL" selected>Alla</option>
+            </select>
+          </div>
+
+          <div class="row">
+            <label>Land</label>
+            <select id="selCountry">
+              <option value="ALL" selected>Alla</option>
             </select>
           </div>
 
@@ -147,189 +72,121 @@
 
           <div class="row">
             <label class="chk">
-              <input type="checkbox" id="chkClamp" />
-              Begränsa resultat till 0–100%
+              <input type="checkbox" id="chkClamp" checked />
+              Begränsa till 0–100%
             </label>
           </div>
 
           <div class="row">
             <label class="chk">
-              <input type="checkbox" id="chkLinkMode" />
-              Länkläge (Shift-klicka två noder för att skapa/lösa länk)
+              <input type="checkbox" id="chkKeywordNodes" checked />
+              Visa nyckelordsnoder i grafen
             </label>
           </div>
 
+          <div class="row">
+            <label>Nyckelordsfilter</label>
+            <input id="txtKW" placeholder="t.ex. cable, sabotage, drone..." />
+          </div>
+
           <div class="hint">
-            Färgkodning: Bekräftat (blå), Sannolikt (orange), Troligt (gul), Möjligt (grå), Tveksamt (vit).
+            <b>Tips:</b> Lägg dina EVENTS i <code>events.js</code> som <code>const EVENTS = [...]</code>.
+            Om du inte vill ha server/fetch så är detta mest robust på GitHub Pages.
           </div>
         </div>
       </div>
 
       <div class="card">
         <div class="cardhead">
-          <h2>Dimensioner</h2>
-          <div class="pill">Radar</div>
+          <h2>Kapacitetsmodell</h2>
+          <div class="pill" id="pillScenario">Viktad</div>
         </div>
-        <div id="radarWrap">
-          <svg id="radar" viewBox="0 0 360 320" aria-label="radar"></svg>
+
+        <div class="grid2">
+          <div class="mini">
+            <div class="k">Total kapacitet</div>
+            <div class="v" id="capTotal">–</div>
+          </div>
+          <div class="mini">
+            <div class="k">Events i urval</div>
+            <div class="v" id="nEvents">–</div>
+          </div>
+          <div class="mini">
+            <div class="k">Kategorier i urval</div>
+            <div class="v" id="nCats">–</div>
+          </div>
+          <div class="mini">
+            <div class="k">Länder i urval</div>
+            <div class="v" id="nCountries">–</div>
+          </div>
         </div>
+
+        <div class="subgrid">
+          <div class="box">
+            <div class="boxt">Dimensioner (0–100)</div>
+            <div id="dimBars"></div>
+          </div>
+          <div class="box">
+            <div class="boxt">Radar</div>
+            <svg id="radar" viewBox="0 0 360 320" aria-label="radar"></svg>
+          </div>
+        </div>
+
         <div class="smallmuted">
-          Radar visar medelvärde per dimension för valt scenario.
+          Beräkning: varje event → (risk 1–5) × trolighetsvikt. Dimension bestäms av kategori via mappning (kan justeras i <code>app.js</code>).
         </div>
       </div>
 
-      <div class="card" id="docs">
+      <div class="card">
         <div class="cardhead">
-          <h2>Modellnoter</h2>
-          <div class="pill">Källa</div>
+          <h2>Tidslinje</h2>
+          <div class="pill">Histogram</div>
         </div>
-        <div class="doc">
-          <p><b>Kapacitet</b> beräknas som en schablon av antagonistens totala kapacitet baserat på fyra dimensioner.</p>
-          <p><b>Scenario</b> (Bästa/Troligast/Värsta) följer strukturen i “Utfall” där olika trolighetsnivåer adderas med vikter.</p>
-          <p><b>Vikter</b> i detta verktyg: Bekräftat=1.0, Sannolikt=0.8, Troligt=0.6, Möjligt=0.3, Tveksamt=0.05.</p>
-          <p><b>Fenomenets procentvärde</b> beräknas som <code>risknivå (1–5) × vikt × 20</code> (20 konverterar 0–5 till 0–100).</p>
-          <p><b>Samlat utfall</b> bygger på medelvärde per dimension (och vid behov även högsta värde som intervall).</p>
+        <svg id="timeline" viewBox="0 0 720 180" aria-label="timeline"></svg>
+        <div class="smallmuted">Antal events per vecka i urvalet.</div>
+      </div>
+
+      <div class="card">
+        <div class="cardhead">
+          <h2>Urval</h2>
+          <div class="pill">Lista</div>
         </div>
+        <div class="row inline">
+          <input id="txtSearch" placeholder="Sök title/summary/url..." />
+          <button id="btnClear" class="btn small">Rensa</button>
+        </div>
+        <div id="eventList" class="list"></div>
       </div>
     </section>
 
     <section class="right">
-      <div class="card canvas">
+      <div id="graphCard" class="card canvas">
         <div class="cardhead">
           <h2>Länkdiagram</h2>
-          <div class="pill">D3 Force</div>
+          <div class="pill">Kategori ↔ Land ↔ Nyckelord</div>
         </div>
         <div id="graph"></div>
         <div class="smallmuted">
-          Dra noder, zooma (hjul), panorera (drag i tom yta). Klicka nod för att redigera i panelen.
+          Dra noder, zooma (hjul), panorera (drag i tom yta). Klicka nod för att pin:a (låsa) eller släppa.
         </div>
       </div>
 
       <div class="card">
         <div class="cardhead">
-          <h2>Fenomen</h2>
-          <div class="pill" id="pillDim">–</div>
+          <h2>Detalj</h2>
+          <div class="pill" id="detailPill">–</div>
         </div>
-
-        <div class="row inline">
-          <input id="txtSearch" placeholder="Sök fenomen..." />
-          <button class="btn small" id="btnAdd">Lägg till</button>
-        </div>
-
-        <div id="phenList" class="list"></div>
-
-        <div class="editor" id="editor" hidden>
-          <h3>Redigera</h3>
-          <div class="row">
-            <label>Namn</label>
-            <input id="edName" />
-          </div>
-
-          <div class="row">
-            <label>Trolighet</label>
-            <select id="edLik">
-              <option value="bekraftat">Bekräftat</option>
-              <option value="sannolikt">Sannolikt</option>
-              <option value="troligt">Troligt</option>
-              <option value="mojligt">Möjligt</option>
-              <option value="tveksamt">Tveksamt</option>
-            </select>
-          </div>
-
-          <div class="row">
-            <label>Risknivå (1–5)</label>
-            <input id="edRisk" type="range" min="1" max="5" step="1" />
-            <div class="rangev"><span id="edRiskVal">–</span></div>
-          </div>
-
-          <div class="row">
-            <label>Notering</label>
-            <textarea id="edNote" rows="3"></textarea>
-          </div>
-
-          <div class="row inline">
-            <button class="btn danger small" id="btnDelete">Ta bort</button>
-            <button class="btn small" id="btnDone">Klar</button>
-          </div>
-        </div>
+        <div id="detail" class="detail"></div>
       </div>
     </section>
   </main>
 
   <footer class="footer">
-    <div>Byggd för GitHub Pages (statisk). Data ligger i <code>data.json</code>.</div>
-    <div>Shift-klicka två noder i länkläge för att skapa en beroendelänk (valfritt).</div>
+    <div>Statisk GitHub Pages. Ingen fetch för data krävs om du använder <code>events.js</code>.</div>
+    <div>Exportera intentioner-JSON för att använda i din tidigare “Intentioner”-sida om du vill separera vyer.</div>
   </footer>
 
-  <script>
-    // Banner + fallback: om sidan körs via file:// eller om data.json inte går att hämta,
-    // så kan du ladda JSON manuellt utan att röra app.js.
-    (function(){
-      const envbar = document.getElementById("envbar");
-      const envUrl = document.getElementById("envUrl");
-      const envHint = document.getElementById("envHint");
-      const btnTryReload = document.getElementById("btnTryReload");
-      const fileManual = document.getElementById("fileManual");
-
-      function showBanner(reason){
-        envbar.style.display = "block";
-        envUrl.textContent = location.href;
-        envHint.textContent = reason;
-      }
-
-      // 1) Om vi kör via file://: visa banner direkt
-      if(location.protocol === "file:"){
-        showBanner("file:// (lokal fil) – starta via http(s) eller ladda JSON manuellt");
-      }
-
-      // 2) Prova att hämta data.json tidigt för att få tydligare fel om det brakar
-      // app.js försöker ändå senare, men här kan vi aktivera banner om det misslyckas.
-      fetch("data.json", {cache:"no-store"})
-        .then(r => {
-          if(!r.ok) throw new Error("HTTP " + r.status);
-          return r.json();
-        })
-        .then(_ => {
-          // Om fetch funkar och vi inte är i file://, håll bannern dold
-          if(location.protocol !== "file:") envbar.style.display = "none";
-        })
-        .catch(err => {
-          showBanner("data.json gick inte att hämta (" + (err?.message || "okänt fel") + ")");
-        });
-
-      // 3) Knapp: försök igen (hard reload)
-      btnTryReload.addEventListener("click", () => location.reload());
-
-      // 4) Manuell import: lägg JSON på window och försök starta om appen
-      fileManual.addEventListener("change", async (e) => {
-        const f = e.target.files && e.target.files[0];
-        if(!f) return;
-        try{
-          const txt = await f.text();
-          const data = JSON.parse(txt);
-          // Exponera som globalt fallback-objekt
-          window.__INTENTIONER_DATA__ = data;
-
-          // Om app.js redan visat alert pga fetch-fel kan en reload räcka:
-          // Vi gör en mjuk reload så app.js hämtar från window först (kräver liten ändring i app.js),
-          // MEN om du inte vill ändra app.js: här gör vi en enkel approach:
-          // - spara i localStorage
-          // - och reload, så du kan läsa från localStorage i app.js senare om du vill.
-          localStorage.setItem("__INTENTIONER_DATA__", JSON.stringify(data));
-
-          // För att du ska slippa ändra app.js *nu*: vi gör också en liten hack:
-          // Vi skapar en blob-URL och byter bas via service-less approach är inte möjlig här.
-          // Därför: reload och använd Importera JSON-knappen i toppen om appen laddar.
-          alert("JSON inläst. Om appen inte uppdateras: ladda om sidan och använd 'Importera JSON' (uppe till höger).");
-        }catch(ex){
-          alert("Kunde inte läsa JSON: " + (ex?.message || "okänt fel"));
-        }finally{
-          e.target.value = "";
-        }
-      });
-    })();
-  </script>
-
+  <script src="events.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
