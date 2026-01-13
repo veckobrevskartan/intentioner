@@ -123,7 +123,11 @@
 
     /* Graph area */
     .graphWrap{position:relative;height:100%;min-height:0}
-    #graph{width:100%;height:100%;min-height:0}
+    #graph{
+      width:100%;
+      height:100%;
+      min-height:0;
+    }
     .hud{
       position:absolute; left:12px; top:12px;
       display:flex; gap:8px; flex-wrap:wrap;
@@ -153,7 +157,7 @@
       display:none;
     }
 
-    /* Intentioner panel (reglage + radar + lista) */
+    /* Intentioner panel */
     .intentGrid{
       height:100%;
       display:grid;
@@ -197,9 +201,28 @@
     .item .it{font-size:12px;font-weight:800;margin-bottom:4px}
     .item .im{font-size:11px;color:var(--muted);line-height:1.35}
 
-    /* Fullscreen */
+    /* Fullscreen (allt) */
     #appShell:fullscreen{width:100vw;height:100vh}
     #appShell:fullscreen{grid-template-columns: 360px 1fr;}
+
+    /* ✅ Fullscreen (graf) – gör att grafen verkligen fyller viewport */
+    #graphWrap:fullscreen{
+      width:100vw !important;
+      height:100vh !important;
+      padding:0 !important;
+      margin:0 !important;
+      background: radial-gradient(1200px 800px at 40% 10%, #0e1623 0%, var(--bg) 60%);
+    }
+    #graphWrap:fullscreen #graph{
+      width:100% !important;
+      height:100% !important;
+    }
+    /* svg skapas i #graph, men detta gör att den alltid fyller */
+    #graphWrap:fullscreen #graph svg{
+      width:100% !important;
+      height:100% !important;
+      display:block;
+    }
   </style>
 </head>
 
@@ -225,7 +248,7 @@
   </header>
 
   <main id="appShell">
-    <!-- LEFT: Status + Filter -->
+    <!-- LEFT -->
     <section style="display:flex;flex-direction:column;gap:10px;min-height:0">
       <div class="card">
         <div class="head"><h2>Status</h2><span class="pill" id="pillSel">–</span></div>
@@ -281,7 +304,7 @@
       </div>
     </section>
 
-    <!-- RIGHT: Graph/Intent views -->
+    <!-- RIGHT -->
     <section class="card" style="min-height:0">
       <div class="head">
         <h2 id="rightTitle">Länkdiagram</h2>
@@ -304,7 +327,6 @@
         <!-- INTENT VIEW -->
         <div class="view" id="viewIntent" style="height:100%;min-height:0">
           <div class="intentGrid" style="height:100%;min-height:0;padding:10px">
-            <!-- Controls -->
             <div class="card" style="min-height:0">
               <div class="head"><h2>Bedömning</h2><span class="pill" id="pillIntent">–</span></div>
               <div class="body scroll">
@@ -353,7 +375,6 @@
               </div>
             </div>
 
-            <!-- Output -->
             <div class="card" style="min-height:0">
               <div class="head"><h2>Visualisering</h2><span class="pill" id="pillScore">–</span></div>
               <div class="body scroll">
@@ -370,7 +391,6 @@
     </section>
   </main>
 
-  <!-- Error capture -->
   <script>
     window.__APP_ERRORS__ = [];
     function addStatusError(msg){
@@ -386,10 +406,7 @@
     window.addEventListener("unhandledrejection", (e)=> addStatusError(e.reason || e));
   </script>
 
-  <script src="./events.js"
-          onerror="addStatusError('events.js kunde inte laddas (404/sökväg).')"></script>
-
-  <script src="./app.js"
-          onerror="addStatusError('app.js kunde inte laddas (404/sökväg).')"></script>
+  <script src="./events.js" onerror="addStatusError('events.js kunde inte laddas (404/sökväg).')"></script>
+  <script src="./app.js" onerror="addStatusError('app.js kunde inte laddas (404/sökväg).')"></script>
 </body>
 </html>
