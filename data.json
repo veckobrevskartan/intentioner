@@ -1,0 +1,78 @@
+{
+  "phenomena": [
+    {
+      "id": "i1",
+      "dimension": "intention",
+      "name": "Målförskjutning mot sabotage",
+      "likelihood": "sannolikt",
+      "risk": 4,
+      "note": "Exempel – byt till dina faktiska fenomen."
+    },
+    {
+      "id": "i2",
+      "dimension": "intention",
+      "name": "Propaganda/psykologisk påverkan",
+      "likelihood": "troligt",
+      "risk": 3,
+      "note": ""
+    },
+    {
+      "id": "f1",
+      "dimension": "facilitering",
+      "name": "Extern finansiering via nätverk",
+      "likelihood": "mojligt",
+      "risk": 4,
+      "note": ""
+    },
+    {
+      "id": "f2",
+      "dimension": "facilitering",
+      "name": "Digital rekrytering/kommunikation",
+      "likelihood": "sannolikt",
+      "risk": 3,
+      "note": ""
+    },
+    {
+      "id": "r1",
+      "dimension": "resurser",
+      "name": "Teknisk kompetens (cyber/OT)",
+      "likelihood": "troligt",
+      "risk": 4,
+      "note": ""
+    },
+    {
+      "id": "r2",
+      "dimension": "resurser",
+      "name": "Tillgång till utrustning/verktyg",
+      "likelihood": "mojligt",
+      "risk": 3,
+      "note": ""
+    },
+    {
+      "id": "t1",
+      "dimension": "tillfalle",
+      "name": "Målrika knutpunkter",
+      "likelihood": "bekraftat",
+      "risk": 4,
+      "note": "Target-rich environment i tid/rum."
+    },
+    {
+      "id": "t2",
+      "dimension": "tillfalle",
+      "name": "Personalbrist/överbelastning",
+      "likelihood": "sannolikt",
+      "risk": 3,
+      "note": ""
+    }
+  ],
+  "links": [
+    {
+      "source": "f2",
+      "target": "i2"
+    },
+    {
+      "source": "r1",
+      "target": "f2"
+    }
+  ]
+}

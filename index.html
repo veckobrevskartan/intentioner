@@ -1,0 +1,202 @@
+<!doctype html>
+<html lang="sv">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>INTENTIONER – interaktiv modell</title>
+  <link rel="stylesheet" href="style.css" />
+  <script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <div class="dot"></div>
+      <div>
+        <div class="title">INTENTIONER</div>
+        <div class="subtitle">Intentioner + Facilitering + Resurser + Tillfälle = Kapacitet</div>
+      </div>
+    </div>
+
+    <div class="actions">
+      <button id="btnReset" class="btn">Återställ vy</button>
+      <button id="btnExport" class="btn">Exportera JSON</button>
+      <label class="btn filebtn">
+        Importera JSON <input id="fileImport" type="file" accept="application/json" />
+      </label>
+      <a class="btn" id="btnDocs" href="#docs">Modellnoter</a>
+    </div>
+  </header>
+
+  <main class="layout">
+    <section class="left">
+      <div class="card">
+        <div class="cardhead">
+          <h2>Översikt</h2>
+          <div class="pill" id="pillMode">Länkdiagram</div>
+        </div>
+
+        <div class="grid2">
+          <div class="mini">
+            <div class="k">Bästa</div>
+            <div class="v" id="capBest">–</div>
+          </div>
+          <div class="mini">
+            <div class="k">Troligast</div>
+            <div class="v" id="capLikely">–</div>
+          </div>
+          <div class="mini">
+            <div class="k">Värsta</div>
+            <div class="v" id="capWorst">–</div>
+          </div>
+          <div class="mini">
+            <div class="k">Antal fenomen</div>
+            <div class="v" id="phenCount">–</div>
+          </div>
+        </div>
+
+        <div class="controls">
+          <div class="row">
+            <label>Visa dimension</label>
+            <select id="selDimension"></select>
+          </div>
+
+          <div class="row">
+            <label>Scenario</label>
+            <select id="selScenario">
+              <option value="best">Bästa</option>
+              <option value="likely" selected>Troligast</option>
+              <option value="worst">Värsta</option>
+            </select>
+          </div>
+
+          <div class="row">
+            <label>Minsta trolighetsnivå</label>
+            <select id="selMinLikelihood">
+              <option value="tveksamt">Tveksamt</option>
+              <option value="mojligt">Möjligt</option>
+              <option value="troligt">Troligt</option>
+              <option value="sannolikt">Sannolikt</option>
+              <option value="bekraftat" selected>Bekräftat</option>
+            </select>
+          </div>
+
+          <div class="row">
+            <label class="chk">
+              <input type="checkbox" id="chkClamp" />
+              Begränsa resultat till 0–100%
+            </label>
+          </div>
+
+          <div class="row">
+            <label class="chk">
+              <input type="checkbox" id="chkLinkMode" />
+              Länkläge (Shift-klicka två noder för att skapa/lösa länk)
+            </label>
+          </div>
+
+          <div class="hint">
+            Färgkodning: Bekräftat (blå), Sannolikt (orange), Troligt (gul), Möjligt (grå), Tveksamt (vit). 
+            (Jfr modellsteg 2) 
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="cardhead">
+          <h2>Dimensioner</h2>
+          <div class="pill">Radar</div>
+        </div>
+        <div id="radarWrap">
+          <svg id="radar" viewBox="0 0 360 320" aria-label="radar"></svg>
+        </div>
+        <div class="smallmuted">
+          Radar visar medelvärde per dimension för valt scenario. (Jfr “Samlat utfall”) 
+        </div>
+      </div>
+
+      <div class="card" id="docs">
+        <div class="cardhead">
+          <h2>Modellnoter</h2>
+          <div class="pill">Källa</div>
+        </div>
+        <div class="doc">
+          <p><b>Kapacitet</b> beräknas som en schablon av antagonistens totala kapacitet baserat på fyra dimensioner. fileciteturn1file14</p>
+          <p><b>Scenario</b> (Bästa/Troligast/Värsta) följer strukturen i “Utfall” där olika trolighetsnivåer adderas med vikter. fileciteturn1file4</p>
+          <p><b>Vikter</b> i detta verktyg är satta enligt exemplet: Bekräftat=1.0, Sannolikt=0.8, Troligt=0.6, Möjligt=0.3, Tveksamt=0.05. fileciteturn1file4</p>
+          <p><b>Fenomenets procentvärde</b> beräknas som <code>risknivå (1–5) × vikt × 20</code> (där 20 konverterar 0–5 till 0–100). fileciteturn1file0</p>
+          <p><b>Samlat utfall</b> i modellen bygger på medelvärde per dimension (och vid behov även högsta värde som intervall). fileciteturn1file12</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="right">
+      <div class="card canvas">
+        <div class="cardhead">
+          <h2>Länkdiagram</h2>
+          <div class="pill">D3 Force</div>
+        </div>
+        <div id="graph"></div>
+        <div class="smallmuted">
+          Dra noder, zooma (hjul), panorera (drag i tom yta). Klicka nod för att redigera i panelen.
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="cardhead">
+          <h2>Fenomen</h2>
+          <div class="pill" id="pillDim">–</div>
+        </div>
+
+        <div class="row inline">
+          <input id="txtSearch" placeholder="Sök fenomen..." />
+          <button class="btn small" id="btnAdd">Lägg till</button>
+        </div>
+
+        <div id="phenList" class="list"></div>
+
+        <div class="editor" id="editor" hidden>
+          <h3>Redigera</h3>
+          <div class="row">
+            <label>Namn</label>
+            <input id="edName" />
+          </div>
+
+          <div class="row">
+            <label>Trolighet</label>
+            <select id="edLik">
+              <option value="bekraftat">Bekräftat</option>
+              <option value="sannolikt">Sannolikt</option>
+              <option value="troligt">Troligt</option>
+              <option value="mojligt">Möjligt</option>
+              <option value="tveksamt">Tveksamt</option>
+            </select>
+          </div>
+
+          <div class="row">
+            <label>Risknivå (1–5)</label>
+            <input id="edRisk" type="range" min="1" max="5" step="1" />
+            <div class="rangev"><span id="edRiskVal">–</span></div>
+          </div>
+
+          <div class="row">
+            <label>Notering</label>
+            <textarea id="edNote" rows="3"></textarea>
+          </div>
+
+          <div class="row inline">
+            <button class="btn danger small" id="btnDelete">Ta bort</button>
+            <button class="btn small" id="btnDone">Klar</button>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div>Byggd för GitHub Pages (statisk). Data ligger i <code>data.json</code>.</div>
+    <div>Shift-klicka två noder i länkläge för att skapa en beroendelänk (valfritt, inte en del av ursprungsmodellen).</div>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>
