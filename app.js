@@ -1,742 +1,979 @@
-// EVENTS → INTENTIONER (statisk GitHub Pages)
-// Robust: ingen fetch krävs om EVENTS finns i events.js.
-// D3 används för graf + enkla SVG-diagram.
+/* app.js – Graf + Intentioner (Bästa/Troligast/Värsta) utan att ändra EVENTS
+   Kräver:
+   - events.js som sätter window.EVENTS = EVENTS;
+   - d3@7 laddat i index.html
+   - index.html med IDs som anges i kommentaren ovan
+*/
 
-const LIKELIHOOD = [
-  { key: "bekraftat", label: "Bekräftat", color: "#3b82f6", w: 1.0, rank: 5 },
-  { key: "sannolikt", label: "Sannolikt", color: "#fb923c", w: 0.8, rank: 4 },
-  { key: "troligt",   label: "Troligt",   color: "#facc15", w: 0.6, rank: 3 },
-  { key: "mojligt",   label: "Möjligt",   color: "#9ca3af", w: 0.3, rank: 2 },
-  { key: "tveksamt",  label: "Tveksamt",  color: "#ffffff", w: 0.05, rank: 1 },
-];
+(() => {
+  "use strict";
 
-const DIMENSIONS = [
-  { key: "intention", label: "Intentioner" },
-  { key: "facilitering", label: "Facilitering" },
-  { key: "resurser", label: "Resurser" },
-  { key: "tillfalle", label: "Tillfälle" },
-];
+  // -----------------------------
+  // 0) Små helpers
+  // -----------------------------
+  const $ = (s) => document.querySelector(s);
+  const on = (el, ev, fn) => el && el.addEventListener(ev, fn);
 
-// Mappning: kategori → dimension (justera efter din egen logik)
-const CAT_TO_DIM = {
-  HYBRID: "intention",
-  POLICY: "intention",
-  TERROR: "intention",
+  const normalizeStr = (s) =>
+    (s || "")
+      .toString()
+      .toLowerCase()
+      .normalize("NFKD")
+      .replace(/[\u0300-\u036f]/g, "");
 
-  INTEL: "facilitering",
-  LEGAL: "facilitering",
-
-  MIL: "resurser",
-  NUCLEAR: "resurser",
-
-  INFRA: "tillfalle",
-  DRONE: "tillfalle",
-  GPS: "tillfalle",
-  MAR: "tillfalle",
-};
-
-// Default risk per kategori om event saknar risk (1–5)
-const CAT_RISK_DEFAULT = {
-  HYBRID: 4, POLICY: 3, TERROR: 4,
-  INTEL: 3, LEGAL: 3,
-  MIL: 4, NUCLEAR: 4,
-  INFRA: 4, DRONE: 3, GPS: 3, MAR: 3,
-};
-
-const STOPWORDS = new Set([
-  "the","and","for","with","from","into","over","under","after","before","this","that","these","those",
-  "som","och","för","med","från","till","över","under","efter","innan","det","den","de","att","i","på","av","en","ett",
-  "om","vid","har","hade","kan","kunde","ska","skall","samt","mot","utan","inom","där","här"
-]);
-
-function byKey(arr, key){ return arr.find(d => d.key === key); }
-function esc(s){ return (s ?? "").toString().replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
-function clamp(x, a, b){ return Math.max(a, Math.min(b, x)); }
-
-function parseDate(ev){
-  const v = ev.date || ev.time || ev.dt || ev.datetime || ev.timestamp;
-  if(!v) return null;
-  const d = new Date(v);
-  if(Number.isNaN(d.getTime())) return null;
-  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
-}
-
-function normalizeEvent(ev){
-  const d = parseDate(ev);
-  const cat = (ev.cat || ev.category || ev.type || "").toString().trim().toUpperCase();
-  const country = (ev.country || ev.land || ev.nation || "Okänt").toString().trim();
-  const title = (ev.title || ev.name || ev.headline || "").toString().trim();
-  const summary = (ev.summary || ev.desc || ev.description || "").toString().trim();
-  const place = (ev.place || ev.location || "").toString().trim();
-  const url = (ev.url || ev.link || "").toString().trim();
-  const source = (ev.source || ev.src || "").toString().trim();
-
-  let likelihood = (ev.likelihood || ev.trolighet || "").toString().trim().toLowerCase();
-  if(!likelihood) likelihood = "mojligt";
-  if(!byKey(LIKELIHOOD, likelihood)) likelihood = "mojligt";
-
-  let risk = parseInt(ev.risk ?? ev.riskLevel ?? ev.risknivå ?? "", 10);
-  if(!risk || Number.isNaN(risk)) risk = CAT_RISK_DEFAULT[cat] ?? 3;
-  risk = clamp(risk, 1, 5);
-
-  const dim = CAT_TO_DIM[cat] || "intention";
-
-  return {
-    _raw: ev,
-    id: ev.id || ev.uuid || ev.guid || (cat + "_" + Math.random().toString(16).slice(2) + "_" + (d ? d.toISOString().slice(0,10) : "nodate")),
-    date: d,
-    dateStr: d ? d.toISOString().slice(0,10) : "",
-    cat, country, title, summary, place, url, source,
-    likelihood, risk, dimension: dim
+  const parseDate = (d) => {
+    if (!d) return null;
+    const m = String(d).match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (!m) return null;
+    const dt = new Date(+m[1], +m[2] - 1, +m[3]);
+    return isNaN(dt.getTime()) ? null : dt;
   };
-}
 
-function tokenise(ev){
-  const txt = (ev.title + " " + ev.summary).toLowerCase();
-  const toks = txt
-    .replace(/https?:\/\/\S+/g, " ")
-    .replace(/[^a-zåäö0-9\s-]/g, " ")
-    .split(/\s+/)
-    .map(t => t.trim())
-    .filter(t => t.length >= 4 && !STOPWORDS.has(t));
-  const seen = new Set();
-  const out = [];
-  for(const t of toks){
-    if(seen.has(t)) continue;
-    seen.add(t);
-    out.push(t);
-    if(out.length >= 6) break;
-  }
-  return out;
-}
+  const fmtDate = (dt) => {
+    if (!dt) return "–";
+    const y = dt.getFullYear();
+    const m = String(dt.getMonth() + 1).padStart(2, "0");
+    const d = String(dt.getDate()).padStart(2, "0");
+    return `${y}-${m}-${d}`;
+  };
 
-// --- State ---
-let ALL = [];
-let FILTERED = [];
-let state = {
-  minLikelihood: "bekraftat",
-  clamp: true,
-  showKeywords: true,
-  kwFilter: "",
-  cat: "ALL",
-  country: "ALL",
-  from: null,
-  to: null,
-  search: "",
-};
+  const escapeHtml = (s) =>
+    (s || "")
+      .toString()
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#039;");
 
-// --- UI ---
-function initUI(){
-  const dates = ALL.filter(e=>e.date).map(e=>e.date.getTime()).sort((a,b)=>a-b);
-  if(dates.length){
-    const minD = new Date(dates[0]);
-    const maxD = new Date(dates[dates.length-1]);
-    const from = new Date(minD);
-    from.setUTCDate(from.getUTCDate() - 30);
-    state.from = from;
-    state.to = maxD;
-    document.getElementById("dateFrom").value = from.toISOString().slice(0,10);
-    document.getElementById("dateTo").value = maxD.toISOString().slice(0,10);
-  }
+  const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
 
-  const cats = Array.from(new Set(ALL.map(e=>e.cat).filter(Boolean))).sort();
-  const countries = Array.from(new Set(ALL.map(e=>e.country).filter(Boolean))).sort((a,b)=>a.localeCompare(b,"sv"));
-
-  const selCat = document.getElementById("selCat");
-  cats.forEach(c=>{
-    const o = document.createElement("option");
-    o.value = c; o.textContent = c;
-    selCat.appendChild(o);
-  });
-
-  const selCountry = document.getElementById("selCountry");
-  countries.forEach(c=>{
-    const o = document.createElement("option");
-    o.value = c; o.textContent = c;
-    selCountry.appendChild(o);
-  });
-
-  document.getElementById("selMinLikelihood").addEventListener("change",(e)=>{ state.minLikelihood=e.target.value; refresh(); });
-  document.getElementById("chkClamp").addEventListener("change",(e)=>{ state.clamp=e.target.checked; refresh(); });
-  document.getElementById("chkKeywordNodes").addEventListener("change",(e)=>{ state.showKeywords=e.target.checked; refreshGraph(); });
-  document.getElementById("txtKW").addEventListener("input",(e)=>{ state.kwFilter=e.target.value.trim().toLowerCase(); refresh(); });
-  document.getElementById("selCat").addEventListener("change",(e)=>{ state.cat=e.target.value; refresh(); });
-  document.getElementById("selCountry").addEventListener("change",(e)=>{ state.country=e.target.value; refresh(); });
-
-  document.getElementById("dateFrom").addEventListener("change",(e)=>{
-    state.from = e.target.value ? new Date(e.target.value+"T00:00:00Z") : null;
-    refresh();
-  });
-  document.getElementById("dateTo").addEventListener("change",(e)=>{
-    state.to = e.target.value ? new Date(e.target.value+"T00:00:00Z") : null;
-    refresh();
-  });
-
-  document.getElementById("txtSearch").addEventListener("input",(e)=>{ state.search=e.target.value.trim().toLowerCase(); renderList(); });
-  document.getElementById("btnClear").addEventListener("click",()=>{ document.getElementById("txtSearch").value=""; state.search=""; renderList(); });
-
-  document.getElementById("btnExportEvents").addEventListener("click", exportEventsJSON);
-  document.getElementById("btnExportModel").addEventListener("click", exportModelJSON);
-
-  document.getElementById("fileImportEvents").addEventListener("change",(e)=>{
-    const f = e.target.files?.[0];
-    if(!f) return;
-    importEventsJSON(f).catch(err=>alert(err.message));
-    e.target.value = "";
-  });
-
-  const btnFS = document.getElementById("btnFS");
-  const graphCard = document.getElementById("graphCard");
-  btnFS.addEventListener("click", async ()=>{
-    if(!document.fullscreenElement){
-      graphCard.classList.add("graphfs");
-      if(graphCard.requestFullscreen) await graphCard.requestFullscreen();
-      initGraph();
-    } else {
-      await document.exitFullscreen();
-    }
-  });
-  document.addEventListener("fullscreenchange", ()=>{
-    if(!document.fullscreenElement){
-      graphCard.classList.remove("graphfs");
-      initGraph();
-    }
-  });
-
-  document.getElementById("btnReset").addEventListener("click", ()=>zoomToFit());
-  window.addEventListener("resize", ()=>initGraph());
-}
-
-function likelihoodAllowed(lik){
-  const minRank = byKey(LIKELIHOOD, state.minLikelihood).rank;
-  const r = byKey(LIKELIHOOD, lik)?.rank ?? 1;
-  return r >= minRank;
-}
-
-function eventWeight(ev){
-  const w = byKey(LIKELIHOOD, ev.likelihood)?.w ?? 0.3;
-  return ev.risk * w;
-}
-
-function applyFilters(){
-  const kw = state.kwFilter;
-  FILTERED = ALL.filter(ev=>{
-    if(state.from && ev.date && ev.date < state.from) return false;
-    if(state.to && ev.date && ev.date > state.to) return false;
-    if(state.cat !== "ALL" && ev.cat !== state.cat) return false;
-    if(state.country !== "ALL" && ev.country !== state.country) return false;
-    if(!likelihoodAllowed(ev.likelihood)) return false;
-    if(kw){
-      const txt = (ev.title + " " + ev.summary).toLowerCase();
-      if(!txt.includes(kw)) return false;
+  function assertDom(ids) {
+    const missing = ids.filter((id) => !document.getElementById(id));
+    if (missing.length) {
+      console.warn("Saknade element-ID:", missing);
+      // Visa något begripligt i UI om möjligt
+      const sub = $("#subTitle");
+      if (sub) sub.textContent = `Saknar element i index: ${missing.join(", ")}`;
+      return false;
     }
     return true;
-  });
-}
-
-function fmtPct(x){
-  const v = state.clamp ? clamp(x,0,100) : x;
-  return (Math.round(v*10)/10).toString().replace(".",",") + "%";
-}
-
-function computeModel(){
-  const dim = {};
-  DIMENSIONS.forEach(d=>dim[d.key]={sum:0, n:0});
-
-  for(const ev of FILTERED){
-    const k = ev.dimension;
-    if(!dim[k]) continue;
-    dim[k].sum += eventWeight(ev);
-    dim[k].n += 1;
   }
 
-  const out = DIMENSIONS.map(d=>{
-    const v = dim[d.key];
-    const avg = v.n ? (v.sum / v.n) : 0;
-    const pct = (avg / 5) * 100;
-    return { key:d.key, label:d.label, value:pct, n:v.n };
-  });
-
-  const total = out.reduce((a,b)=>a+b.value,0) / out.length;
-  return { dims: out, total };
-}
-
-function renderModel(){
-  const m = computeModel();
-  document.getElementById("capTotal").textContent = fmtPct(m.total);
-  document.getElementById("nEvents").textContent = String(FILTERED.length);
-
-  const cats = new Set(FILTERED.map(e=>e.cat));
-  const countries = new Set(FILTERED.map(e=>e.country));
-  document.getElementById("nCats").textContent = String(cats.size);
-  document.getElementById("nCountries").textContent = String(countries.size);
-
-  renderDimBars(m.dims);
-  renderRadar(m.dims);
-}
-
-function renderDimBars(dims){
-  const wrap = document.getElementById("dimBars");
-  wrap.innerHTML = "";
-  for(const d of dims){
-    const row = document.createElement("div");
-    row.style.display="grid";
-    row.style.gridTemplateColumns="150px 1fr 70px";
-    row.style.gap="10px";
-    row.style.alignItems="center";
-    row.style.margin="8px 0";
-
-    const l = document.createElement("div");
-    l.textContent = d.label;
-    l.style.color="rgba(231,236,247,.92)";
-    l.style.fontSize="12px";
-
-    const bar = document.createElement("div");
-    bar.style.height="12px";
-    bar.style.border="1px solid rgba(38,50,74,.9)";
-    bar.style.borderRadius="999px";
-    bar.style.overflow="hidden";
-    bar.style.background="rgba(11,14,20,.45)";
-
-    const fill = document.createElement("div");
-    fill.style.height="100%";
-    fill.style.width = clamp(d.value,0,100).toFixed(1)+"%";
-    fill.style.background="rgba(122,162,255,.75)";
-    bar.appendChild(fill);
-
-    const r = document.createElement("div");
-    r.style.textAlign="right";
-    r.style.fontFamily="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace";
-    r.style.fontSize="12px";
-    r.style.color="rgba(138,151,178,.95)";
-    r.textContent = fmtPct(d.value);
-
-    row.appendChild(l); row.appendChild(bar); row.appendChild(r);
-    wrap.appendChild(row);
-  }
-}
-
-function renderRadar(dims){
-  const svg = d3.select("#radar");
-  svg.selectAll("*").remove();
-
-  const w=360, h=320, cx=w/2, cy=150, r=110;
-
-  const levels=[20,40,60,80,100];
-  levels.forEach(lv=>{
-    svg.append("circle").attr("cx",cx).attr("cy",cy).attr("r",r*(lv/100))
-      .attr("fill","none").attr("stroke","rgba(38,50,74,.8)").attr("stroke-dasharray","3,3");
-  });
-
-  const angle = (2*Math.PI)/dims.length;
-  dims.forEach((a,i)=>{
-    const ang = -Math.PI/2 + i*angle;
-    const x = cx + Math.cos(ang)*r;
-    const y = cy + Math.sin(ang)*r;
-    svg.append("line").attr("x1",cx).attr("y1",cy).attr("x2",x).attr("y2",y).attr("stroke","rgba(38,50,74,.9)");
-
-    const lx = cx + Math.cos(ang)*(r+26);
-    const ly = cy + Math.sin(ang)*(r+26);
-    svg.append("text")
-      .attr("x",lx).attr("y",ly)
-      .attr("text-anchor",(Math.cos(ang)>0.2)?"start":(Math.cos(ang)<-0.2?"end":"middle"))
-      .attr("fill","rgba(231,236,247,.92)")
-      .attr("font-size","11")
-      .text(a.label);
-  });
-
-  const pts = dims.map((a,i)=>{
-    const ang=-Math.PI/2+i*angle;
-    const rr=r*(clamp(a.value,0,100)/100);
-    return [cx+Math.cos(ang)*rr, cy+Math.sin(ang)*rr];
-  });
-
-  svg.append("polygon")
-    .attr("points", pts.map(p=>p.join(",")).join(" "))
-    .attr("fill","rgba(122,162,255,.20)")
-    .attr("stroke","rgba(122,162,255,.9)")
-    .attr("stroke-width",2);
-}
-
-function weekKey(d){
-  const dd = new Date(d.getTime());
-  dd.setUTCDate(dd.getUTCDate() + 4 - (dd.getUTCDay()||7));
-  const year = dd.getUTCFullYear();
-  const yearStart = new Date(Date.UTC(year,0,1));
-  const weekNo = Math.ceil((((dd - yearStart) / 86400000) + 1) / 7);
-  return year + "-W" + String(weekNo).padStart(2,"0");
-}
-
-function renderTimeline(){
-  const svg = d3.select("#timeline");
-  svg.selectAll("*").remove();
-
-  const w=720,h=180, pad={l:40,r:14,t:12,b:28};
-
-  const counts = new Map();
-  FILTERED.filter(e=>e.date).forEach(e=>{
-    const k=weekKey(e.date);
-    counts.set(k, (counts.get(k)||0)+1);
-  });
-
-  const keys = Array.from(counts.keys()).sort();
-  const data = keys.map(k=>({k, v:counts.get(k)}));
-  const maxV = Math.max(1, ...data.map(d=>d.v));
-
-  const x = d3.scaleBand().domain(keys).range([pad.l, w-pad.r]).padding(0.15);
-  const y = d3.scaleLinear().domain([0,maxV]).nice().range([h-pad.b, pad.t]);
-
-  svg.append("line").attr("x1",pad.l).attr("y1",h-pad.b).attr("x2",w-pad.r).attr("y2",h-pad.b).attr("stroke","rgba(38,50,74,.9)");
-  svg.append("line").attr("x1",pad.l).attr("y1",pad.t).attr("x2",pad.l).attr("y2",h-pad.b).attr("stroke","rgba(38,50,74,.9)");
-
-  svg.selectAll("rect.bar").data(data).enter().append("rect")
-    .attr("x",d=>x(d.k)).attr("y",d=>y(d.v))
-    .attr("width",x.bandwidth()).attr("height",d=>(h-pad.b)-y(d.v))
-    .attr("fill","rgba(122,162,255,.75)")
-    .attr("rx",6).attr("ry",6);
-
-  const ticks = y.ticks(4);
-  ticks.forEach(t=>{
-    svg.append("text").attr("x",pad.l-8).attr("y",y(t)+4).attr("text-anchor","end")
-      .attr("fill","rgba(138,151,178,.95)").attr("font-size","10").text(t);
-    svg.append("line").attr("x1",pad.l).attr("y1",y(t)).attr("x2",w-pad.r).attr("y2",y(t))
-      .attr("stroke","rgba(38,50,74,.45)").attr("stroke-dasharray","3,3");
-  });
-
-  const step = Math.max(1, Math.floor(keys.length/8));
-  keys.forEach((k,i)=>{
-    if(i%step!==0 && i!==keys.length-1) return;
-    svg.append("text").attr("x",x(k)+x.bandwidth()/2).attr("y",h-10).attr("text-anchor","middle")
-      .attr("fill","rgba(138,151,178,.95)").attr("font-size","10").text(k);
-  });
-}
-
-function renderList(){
-  const wrap = document.getElementById("eventList");
-  const q = state.search;
-
-  const items = FILTERED
-    .filter(e=>{
-      if(!q) return true;
-      const txt = (e.title+" "+e.summary+" "+e.url+" "+e.country+" "+e.cat).toLowerCase();
-      return txt.includes(q);
-    })
-    .slice()
-    .sort((a,b)=>{
-      const ta = a.date ? a.date.getTime() : 0;
-      const tb = b.date ? b.date.getTime() : 0;
-      return tb-ta;
-    });
-
-  wrap.innerHTML = "";
-  for(const e of items){
-    const lik = byKey(LIKELIHOOD, e.likelihood);
-    const el = document.createElement("div");
-    el.className = "item";
-    el.innerHTML = `
-      <div class="t">${esc(e.title || "(utan titel)")}</div>
-      <div class="m">${esc(e.dateStr)} · ${esc(e.cat)} · ${esc(e.country)}${e.place?(" · "+esc(e.place)):""}</div>
-      <div class="badges">
-        <span class="badge">${esc(lik?.label || e.likelihood)}</span>
-        <span class="badge">risk ${e.risk}</span>
-        <span class="badge">${esc(DIMENSIONS.find(d=>d.key===e.dimension)?.label || e.dimension)}</span>
-        ${e.source?`<span class="badge">${esc(e.source)}</span>`:""}
-      </div>
-    `;
-    el.addEventListener("click", ()=>showDetail(e));
-    wrap.appendChild(el);
-  }
-}
-
-function showDetail(e){
-  document.getElementById("detailPill").textContent = e.id;
-  const lik = byKey(LIKELIHOOD, e.likelihood);
-  const html = `
-    <div><b>${esc(e.title || "(utan titel)")}</b></div>
-    <div class="badges" style="margin:10px 0 12px">
-      <span class="badge">${esc(e.dateStr)}</span>
-      <span class="badge">${esc(e.cat)}</span>
-      <span class="badge">${esc(e.country)}</span>
-      ${e.place?`<span class="badge">${esc(e.place)}</span>`:""}
-      <span class="badge">${esc(lik?.label || e.likelihood)}</span>
-      <span class="badge">risk ${e.risk}</span>
-      <span class="badge">${esc(DIMENSIONS.find(d=>d.key===e.dimension)?.label || e.dimension)}</span>
-    </div>
-    ${e.summary?`<div>${esc(e.summary)}</div>`:""}
-    ${e.url?`<div style="margin-top:10px"><a href="${esc(e.url)}" target="_blank" rel="noreferrer">Öppna källa</a></div>`:""}
-  `;
-  document.getElementById("detail").innerHTML = html;
-}
-
-// --- Graph ---
-let sim=null, svgG=null, zoom=null, zoomHost=null;
-
-function buildGraph(){
-  const nodes = [];
-  const links = [];
-  const nodeIndex = new Map();
-
-  function addNode(id, type, label){
-    if(nodeIndex.has(id)) return nodeIndex.get(id);
-    const n = {id, type, label, fx:null, fy:null};
-    nodeIndex.set(id,n);
-    nodes.push(n);
-    return n;
+  // -----------------------------
+  // 1) Läs EVENTS (oförändrade)
+  // -----------------------------
+  const RAW = Array.isArray(window.EVENTS) ? window.EVENTS : [];
+  if (!RAW.length) {
+    alert(
+      "EVENTS saknas. Kontrollera att events.js ligger i samma mapp och slutar med: window.EVENTS = EVENTS;"
+    );
   }
 
-  const showKW = state.showKeywords;
-  const kwFilter = state.kwFilter;
-
-  const kwCount = new Map();
-  FILTERED.forEach(e=>{
-    if(showKW){
-      tokenise(e).forEach(t=>{
-        if(kwFilter && !t.includes(kwFilter)) return;
-        kwCount.set(t, (kwCount.get(t)||0)+1);
-      });
-    }
+  // Normalisera till intern form (men ändrar inte originalobjekten)
+  const DATA = RAW.map((e) => {
+    const date = e.date || e.time || e.dt || e.datetime || "";
+    return {
+      ...e,
+      date,
+      _dt: parseDate(date),
+      _cat: (e.cat || e.category || "").toString().trim(),
+      _country: (e.country || e.land || "").toString().trim(),
+      _title: (e.title || e.name || "").toString(),
+      _summary: (e.summary || e.desc || e.description || "").toString(),
+      _place: (e.place || "").toString(),
+      _url: (e.url || e.link || "").toString(),
+      _source: (e.source || "").toString(),
+    };
   });
 
-  const kwMin = Math.max(2, Math.floor(FILTERED.length/40));
-  const allowedKW = new Set(Array.from(kwCount.entries()).filter(([k,v])=>v>=kwMin).map(([k])=>k));
-
-  FILTERED.forEach(e=>{
-    const c = addNode("cat:"+e.cat, "cat", e.cat);
-    const n = addNode("country:"+e.country, "country", e.country);
-    links.push({source:c.id, target:n.id, kind:"cat-country"});
-
-    if(showKW){
-      tokenise(e).forEach(t=>{
-        if(!allowedKW.has(t)) return;
-        const k = addNode("kw:"+t, "kw", t);
-        links.push({source:c.id, target:k.id, kind:"cat-kw"});
-      });
-    }
-  });
-
-  const seen = new Set();
-  const uniq = [];
-  for(const l of links){
-    const key = l.source + "→" + l.target + "|" + l.kind;
-    if(seen.has(key)) continue;
-    seen.add(key);
-    uniq.push(l);
+  // -----------------------------
+  // 2) Flikar + scope
+  // -----------------------------
+  function setTab(which) {
+    const g = $("#tabGraph"),
+      i = $("#tabIntent"),
+      vg = $("#viewGraph"),
+      vi = $("#viewIntent");
+    if (!g || !i || !vg || !vi) return;
+    g.classList.toggle("active", which === "graph");
+    i.classList.toggle("active", which === "intent");
+    vg.classList.toggle("active", which === "graph");
+    vi.classList.toggle("active", which === "intent");
   }
 
-  return {nodes, links:uniq};
-}
+  // Scope: delmängd via grafklick (index i aktuell filterlista)
+  let SCOPE = { type: "all", label: "Alla", idxSet: null };
 
-function nodeFill(n){
-  if(n.type==="cat") return "rgba(122,162,255,.55)";
-  if(n.type==="country") return "rgba(92,225,182,.45)";
-  return "rgba(17,23,37,.9)";
-}
-function nodeStroke(n){
-  if(n.type==="kw") return "rgba(231,236,247,.45)";
-  return "rgba(231,236,247,.55)";
-}
-
-function initGraph(){
-  const container = document.getElementById("graph");
-  container.innerHTML = "";
-
-  const width = container.clientWidth;
-  const height = container.clientHeight;
-
-  const svg = d3.select(container).append("svg")
-    .attr("width", width)
-    .attr("height", height);
-
-  zoomHost = svg;
-  const g = svg.append("g");
-  svgG = g;
-
-  zoom = d3.zoom()
-    .scaleExtent([0.35, 3.2])
-    .on("zoom", (event) => g.attr("transform", event.transform));
-
-  svg.call(zoom);
-
-  const {nodes, links} = buildGraph();
-
-  const link = g.append("g")
-    .selectAll("line")
-    .data(links)
-    .join("line")
-    .attr("stroke", d => d.kind==="cat-country" ? "rgba(138,151,178,.40)" : "rgba(138,151,178,.28)")
-    .attr("stroke-width", d => d.kind==="cat-country" ? 1.6 : 1.1);
-
-  const node = g.append("g")
-    .selectAll("g")
-    .data(nodes, d=>d.id)
-    .join("g")
-    .attr("class", d => "node " + d.type);
-
-  node.append("circle")
-    .attr("r", d => d.type==="kw" ? 9 : 13)
-    .attr("fill", d => nodeFill(d))
-    .attr("stroke", d => nodeStroke(d))
-    .attr("stroke-width", 2);
-
-  node.append("text")
-    .attr("x", 16)
-    .attr("y", 4)
-    .attr("fill","rgba(231,236,247,.92)")
-    .attr("font-size", 11)
-    .text(d=>d.label);
-
-  node.on("click", (event, d)=>{
-    event.stopPropagation();
-    if(d.fx == null){
-      d.fx = d.x; d.fy = d.y;
-    } else {
-      d.fx = null; d.fy = null;
-    }
-  });
-
-  const drag = d3.drag()
-    .on("start", (event, d)=>{
-      if(!event.active) sim.alphaTarget(0.3).restart();
-      d.fx = d.x; d.fy = d.y;
-    })
-    .on("drag", (event, d)=>{ d.fx = event.x; d.fy = event.y; })
-    .on("end", (event)=>{ if(!event.active) sim.alphaTarget(0); });
-
-  node.call(drag);
-
-  sim = d3.forceSimulation(nodes)
-    .force("link", d3.forceLink(links).id(d=>d.id).distance(l=> l.kind==="cat-country" ? 90 : 70))
-    .force("charge", d3.forceManyBody().strength(-260))
-    .force("center", d3.forceCenter(width/2, height/2))
-    .force("collide", d3.forceCollide().radius(d=> (d.type==="kw"?16:22)))
-    .on("tick", ticked);
-
-  function ticked(){
-    link
-      .attr("x1", d => nodeRef(d.source).x)
-      .attr("y1", d => nodeRef(d.source).y)
-      .attr("x2", d => nodeRef(d.target).x)
-      .attr("y2", d => nodeRef(d.target).y);
-
-    node.attr("transform", d => `translate(${d.x},${d.y})`);
+  function setScopeAll() {
+    SCOPE = { type: "all", label: "Alla", idxSet: null };
+    const pill = $("#pillScope");
+    if (pill) pill.textContent = `Urval: Alla`;
+    const pillSel = $("#pillSel");
+    if (pillSel) pillSel.textContent = "–";
+    const detail = $("#detail");
+    if (detail) detail.innerHTML = `Klicka en nod i grafen.`;
+    refresh(); // graf + intentioner
   }
-  function nodeRef(ref){ return (typeof ref === "object") ? ref : nodes.find(n=>n.id===ref); }
 
-  requestAnimationFrame(()=>zoomToFit());
-}
-
-function zoomToFit(){
-  if(!zoomHost || !svgG) return;
-  const container = document.getElementById("graph");
-  const width = container.clientWidth;
-  const height = container.clientHeight;
-  const bounds = svgG.node().getBBox();
-  if(!bounds.width || !bounds.height) return;
-  const scale = Math.max(0.35, Math.min(2.6, 0.92 / Math.max(bounds.width/width, bounds.height/height)));
-  const tx = (width/2) - scale*(bounds.x + bounds.width/2);
-  const ty = (height/2) - scale*(bounds.y + bounds.height/2);
-  zoomHost.transition().duration(450).call(zoom.transform, d3.zoomIdentity.translate(tx,ty).scale(scale));
-}
-function refreshGraph(){ initGraph(); }
-
-// --- Export/Import ---
-function downloadJSON(obj, filename){
-  const blob = new Blob([JSON.stringify(obj, null, 2)], {type:"application/json"});
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  setTimeout(()=>URL.revokeObjectURL(url), 1000);
-}
-function exportEventsJSON(){ downloadJSON(ALL.map(e=>e._raw), "events-export.json"); }
-function computeModelFromEvents(){
-  const map = new Map();
-  FILTERED.forEach(e=>{
-    const key = e.dimension + "|" + e.cat;
-    if(!map.has(key)){
-      map.set(key, {dimension:e.dimension, cat:e.cat, sum:0, n:0, maxLik:"tveksamt"});
-    }
-    const o = map.get(key);
-    o.sum += eventWeight(e);
-    o.n += 1;
-    const cur = byKey(LIKELIHOOD, o.maxLik)?.rank ?? 1;
-    const nxt = byKey(LIKELIHOOD, e.likelihood)?.rank ?? 1;
-    if(nxt > cur) o.maxLik = e.likelihood;
-  });
-
-  const phenomena = [];
-  for(const o of map.values()){
-    const avg = o.n ? (o.sum/o.n) : 0;
-    const riskApprox = clamp(Math.round(avg), 1, 5);
-    phenomena.push({
-      id: o.dimension.slice(0,1) + "_" + o.cat,
-      dimension: o.dimension,
-      name: `${o.cat} (${o.n} st)`,
-      likelihood: o.maxLik,
-      risk: riskApprox,
-      note: "Skapad från EVENTS-urval."
+  // -----------------------------
+  // 3) Filter UI
+  // -----------------------------
+  function fillSelect(sel, arr) {
+    if (!sel) return;
+    sel.innerHTML = "";
+    arr.forEach((v) => {
+      const o = document.createElement("option");
+      o.value = v;
+      o.textContent = v;
+      sel.appendChild(o);
     });
   }
 
-  const links = [];
-  const byCountry = new Map();
-  FILTERED.forEach(e=>{
-    if(!byCountry.has(e.country)) byCountry.set(e.country, new Set());
-    byCountry.get(e.country).add(e.dimension.slice(0,1) + "_" + e.cat);
-  });
-  for(const setIds of byCountry.values()){
-    const ids = Array.from(setIds);
-    for(let i=0;i<ids.length;i++){
-      for(let j=i+1;j<ids.length;j++){
-        links.push({source: ids[i], target: ids[j]});
+  const cats = ["Alla", ...Array.from(new Set(DATA.map((e) => e._cat).filter(Boolean))).sort()];
+  const ctrs = ["Alla", ...Array.from(new Set(DATA.map((e) => e._country).filter(Boolean))).sort()];
+
+  // Date bounds
+  const dates = DATA.map((e) => e._dt).filter(Boolean).sort((a, b) => a - b);
+  const minDt = dates[0] || null;
+  const maxDt = dates[dates.length - 1] || null;
+
+  function initFilters() {
+    fillSelect($("#cat"), cats);
+    fillSelect($("#country"), ctrs);
+
+    if (minDt && $("#dFrom")) $("#dFrom").value = fmtDate(minDt);
+    if (maxDt && $("#dTo")) $("#dTo").value = fmtDate(maxDt);
+
+    if ($("#limit")) $("#limit").value = String(Math.min(600, Math.max(200, DATA.length || 200)));
+    if ($("#kwMin")) $("#kwMin").value = "3";
+
+    updateSliderLabels();
+  }
+
+  function updateSliderLabels() {
+    if ($("#limitVal") && $("#limit")) $("#limitVal").textContent = `${$("#limit").value} st`;
+    if ($("#kwMinVal") && $("#kwMin")) $("#kwMinVal").textContent = `${$("#kwMin").value}`;
+  }
+
+  function applyFilters() {
+    updateSliderLabels();
+
+    const q = normalizeStr($("#q")?.value || "");
+    const cat = $("#cat")?.value || "Alla";
+    const country = $("#country")?.value || "Alla";
+    const from = parseDate($("#dFrom")?.value || "");
+    const to = parseDate($("#dTo")?.value || "");
+    const limit = Number($("#limit")?.value || 600);
+
+    let list = DATA.filter((e) => {
+      if (cat !== "Alla" && e._cat !== cat) return false;
+      if (country !== "Alla" && e._country !== country) return false;
+
+      if (from && e._dt && e._dt < from) return false;
+      if (to && e._dt && e._dt > to) return false;
+
+      if (q) {
+        const hay = normalizeStr(`${e._title} ${e._summary} ${e._cat} ${e._country} ${e._source}`);
+        if (!hay.includes(q)) return false;
+      }
+      return true;
+    });
+
+    // sort by date desc
+    list.sort((a, b) => (b._dt?.getTime() || 0) - (a._dt?.getTime() || 0));
+
+    // cap
+    if (list.length > limit) list = list.slice(0, limit);
+
+    return list;
+  }
+
+  // -----------------------------
+  // 4) Nyckelord
+  // -----------------------------
+  const STOP = new Set([
+    "och","att","som","det","den","en","ett","i","på","av","för","med","till","om","från","under","efter","innan",
+    "the","a","an","and","or","of","to","in","on","for","with","from","at","by","as","is","are","was","were","be",
+    "har","ha","hade","kan","kunde","ska","skulle","säger","uppger","enligt","mot","vid","nu","där","då",
+  ]);
+
+  function tokenize(text) {
+    const t = normalizeStr(text)
+      .replace(/https?:\/\/\S+/g, " ")
+      .replace(/[^\p{L}\p{N}]+/gu, " ")
+      .trim();
+    if (!t) return [];
+    return t
+      .split(/\s+/g)
+      .filter(Boolean)
+      .filter((w) => w.length >= 4 && !STOP.has(w));
+  }
+
+  function keywordCounts(events) {
+    const c = new Map();
+    for (const e of events) {
+      const toks = tokenize(`${e._title} ${e._summary} ${e._source}`);
+      for (const w of toks) c.set(w, (c.get(w) || 0) + 1);
+    }
+    return c;
+  }
+
+  // -----------------------------
+  // 5) Heuristisk härledning (utan att ändra events)
+  //    -> dimension, risknivå, sannolikhet
+  // -----------------------------
+  const CAT_TO_DIM = {
+    HYBRID: "Intentioner",
+    POLICY: "Intentioner",
+    TERROR: "Intentioner",
+
+    INTEL: "Facilitering",
+    LEGAL: "Facilitering",
+
+    MIL: "Resurser",
+    MAR: "Resurser",
+    INFRA: "Resurser",
+    NUCLEAR: "Resurser",
+
+    DRONE: "Tillfälle",
+    GPS: "Tillfälle",
+  };
+
+  // Basrisk per kategori (1–5)
+  const CAT_BASE_RISK = {
+    TERROR: 4,
+    INFRA: 4,
+    NUCLEAR: 4,
+    MIL: 4,
+    MAR: 3,
+    INTEL: 3,
+    HYBRID: 3,
+    DRONE: 3,
+    GPS: 3,
+    POLICY: 2,
+    LEGAL: 2,
+  };
+
+  // Triggerord som justerar risk (kategorioberoende)
+  const RISK_TRIGGERS = [
+    // våld/sabotage/död
+    { re: /\b(sabotage|spräng|explos|bomb|attack|skott|död|döds|dead|killed|mörd)\b/i, delta: +1 },
+    // kritisk infra
+    { re: /\b(cable|kabel|pipeline|gasledning|substation|kraftnät|power\s?grid|järnväg|rail|bridge|bro|hamn|port|airport|flygplats)\b/i, delta: +1 },
+    // cyber/underrättelse/övervakning
+    { re: /\b(spyware|implant|sigint|massövervak|mass\s?tracking|geofence|stingray|cell-site|intercept|wiretap|avlyssn)\b/i, delta: +1 },
+    // “övning/test”
+    { re: /\b(test|övning|exercise|drill)\b/i, delta: -1 },
+  ];
+
+  // Sannolikhetsvikter enligt din text
+  // Bekräftat (>95%)=0.95; Sannolikt(75-95)=0.85; Troligen(40-75)=0.575; Möjligen(5-40)=0.225; Tveksam(0-5)=0.025
+  const P = {
+    bekraftat: 0.95,
+    bekräftat: 0.95,
+    sannolikt: 0.85,
+    troligen: 0.575,
+    mojligt: 0.225,
+    möjligt: 0.225,
+    möjligen: 0.225,
+    tveksamt: 0.025,
+    tveksam: 0.025,
+  };
+
+  // Domänklassning (du kan fylla på om du vill – men detta funkar direkt)
+  const DOMAIN_CONF = {
+    // myndigheter / officiellt
+    official: [
+      "polisen.se", "regeringen.se", "riksdagen.se", "domstol.se", "forsvarsmakten.se", "sakerhetspolisen.se", "msb.se",
+      ".gov", ".mil", "europa.eu",
+    ],
+    // etablerade medier
+    major: [
+      "reuters.com","apnews.com","afp.com","bbc.","ft.com","wsj.com","nytimes.com","theguardian.com",
+      "svt.se","dn.se","sr.se","sydsvenskan.se","gp.se","aftonbladet.se","expressen.se",
+      "politico.","bloomberg.","lemonde.","spiegel.","zeit.de","rfi.fr","france24",
+      "yle.fi","hs.fi","nrk.no","dr.dk","tv2.no",
+    ],
+    // social/aggregator (lägre)
+    social: [
+      "linkedin.com","x.com","twitter.com","t.me","telegram","facebook.com","instagram.com","youtube.com","tiktok.com",
+      "ground.news","substack.com","medium.com",
+    ],
+  };
+
+  // Språksignaler som drar ned säkerhet
+  const UNCERTAIN_CUES = /\b(uppgift|uppgifter|obekräft|rykte|rykten|reportedly|alleged|claim|claims|sources|enligt\s+källor|suspected|possible)\b/i;
+  const CONFIRM_CUES = /\b(bekräft|confirmed|confirm|åtal|dömd|dom|charges|indicted|arrested|gripits|häktad)\b/i;
+
+  function classifyLikelihood(e) {
+    const url = (e._url || "").toLowerCase();
+    const text = `${e._title || ""} ${e._summary || ""} ${e._source || ""}`.toLowerCase();
+
+    // officiellt
+    if (DOMAIN_CONF.official.some((d) => (d.startsWith(".") ? url.includes(d) : url.includes(d)))) {
+      return "Bekräftat";
+    }
+
+    // stora medier
+    if (DOMAIN_CONF.major.some((d) => url.includes(d))) {
+      if (UNCERTAIN_CUES.test(text)) return "Troligen";
+      return "Sannolikt";
+    }
+
+    // social/aggregator
+    if (DOMAIN_CONF.social.some((d) => url.includes(d))) {
+      if (CONFIRM_CUES.test(text)) return "Troligen";
+      return "Möjligen";
+    }
+
+    // fallback på textsignaler
+    if (CONFIRM_CUES.test(text)) return "Sannolikt";
+    if (UNCERTAIN_CUES.test(text)) return "Möjligen";
+    return "Troligen";
+  }
+
+  function deriveRisk(e) {
+    let r = CAT_BASE_RISK[e._cat] ?? 3;
+    const text = `${e._title || ""} ${e._summary || ""}`;
+
+    for (const t of RISK_TRIGGERS) {
+      if (t.re.test(text)) r += t.delta;
+    }
+
+    // kategori-specifika småjusteringar
+    if (e._cat === "POLICY") {
+      if (/\b(sanction|sanktion|förbud|ban|emergency|undantagstillstånd)\b/i.test(text)) r += 1;
+    }
+    if (e._cat === "GPS") {
+      if (/\b(jamming|spoof|störning|spoofing)\b/i.test(text)) r += 1;
+    }
+    if (e._cat === "DRONE") {
+      if (/\b(intrång|intrusion|nedskjuten|shot\s+down|over\s+airport|flygplats)\b/i.test(text)) r += 1;
+    }
+
+    return clamp(r, 1, 5);
+  }
+
+  function deriveDim(e) {
+    return CAT_TO_DIM[e._cat] || "Intentioner";
+  }
+
+  function derive(e) {
+    const dim = deriveDim(e);
+    const risk = deriveRisk(e);
+    const likelihood = classifyLikelihood(e);
+
+    // normalisera nyckel för P
+    const lkKey = normalizeStr(likelihood).replace("ö", "o").replace("ä", "a"); // grov
+    // men vi returnerar label, och gör nyckel senare
+    return { dim, risk, likelihood };
+  }
+
+  function lkKey(s) {
+    return normalizeStr(s)
+      .replace("möjligen", "mojligt")
+      .replace("möjligt", "mojligt")
+      .replace("bekräftat", "bekraftat");
+  }
+
+  // -----------------------------
+  // 6) Intentioner-beräkning: Bästa/Troligast/Värsta
+  // -----------------------------
+  const DIM_ORDER = ["Intentioner", "Facilitering", "Resurser", "Tillfälle"];
+  const SCEN = ["best", "likely", "worst"];
+
+  // scenarioregler
+  const ORDER_LK = ["bekraftat", "sannolikt", "troligen", "mojligt", "tveksamt"];
+  function scenarioIncludes(scenario, lk) {
+    const i = ORDER_LK.indexOf(lk);
+    if (i < 0) return false;
+    if (scenario === "best") return i <= 0;      // bara bekräftat
+    if (scenario === "likely") return i <= 1;    // bekräftat+sannolikt
+    if (scenario === "worst") return i <= 4;     // alla
+    return false;
+  }
+
+  function computeKapacitet(events) {
+    // per dim per scen: array av viktade riskfaktorer
+    const per = {};
+    for (const d of DIM_ORDER) per[d] = { best: [], likely: [], worst: [] };
+
+    const usable = [];
+    for (const e of events) {
+      const d = derive(e);
+      const lk = lkKey(d.likelihood);
+      const p = P[lk];
+      if (!p) continue;
+
+      const wr = d.risk * p; // viktad riskfaktor
+      usable.push({ e, dim: d.dim, lk, wr, risk: d.risk, likelihood: d.likelihood });
+
+      for (const sc of SCEN) {
+        if (scenarioIncludes(sc, lk)) per[d.dim][sc].push(wr);
       }
     }
+
+    const stats = (arr) => {
+      if (!arr.length) return { mean: 0, max: 0 };
+      const mean = arr.reduce((a, b) => a + b, 0) / arr.length;
+      const max = Math.max(...arr);
+      return { mean, max };
+    };
+
+    const out = {};
+    for (const d of DIM_ORDER) {
+      out[d] = {
+        best: stats(per[d].best),
+        likely: stats(per[d].likely),
+        worst: stats(per[d].worst),
+      };
+    }
+
+    // total = medel av dimensionernas mean/max (dimension-wise)
+    function totalFor(sc) {
+      const means = DIM_ORDER.map((d) => out[d][sc].mean);
+      const maxes = DIM_ORDER.map((d) => out[d][sc].max);
+      const mean = means.reduce((a, b) => a + b, 0) / means.length;
+      const max = maxes.reduce((a, b) => a + b, 0) / maxes.length;
+      return { mean, max };
+    }
+
+    const total = {
+      best: totalFor("best"),
+      likely: totalFor("likely"),
+      worst: totalFor("worst"),
+    };
+
+    // Skala till 0–100 på max 5.0 (risk 5 * 0.95 ≈ 4.75; vi använder 5 som tak för enkel läsbarhet)
+    const toPct = (x) => Math.round((x / 5) * 100);
+
+    const pct = {};
+    for (const d of DIM_ORDER) {
+      pct[d] = {
+        best: { mean: toPct(out[d].best.mean), max: toPct(out[d].best.max) },
+        likely: { mean: toPct(out[d].likely.mean), max: toPct(out[d].likely.max) },
+        worst: { mean: toPct(out[d].worst.mean), max: toPct(out[d].worst.max) },
+      };
+    }
+    const pctTotal = {
+      best: { mean: toPct(total.best.mean), max: toPct(total.best.max) },
+      likely: { mean: toPct(total.likely.mean), max: toPct(total.likely.max) },
+      worst: { mean: toPct(total.worst.mean), max: toPct(total.worst.max) },
+    };
+
+    // “score” till KPI: välj Troligast mean i procent som total
+    const scoreLikely = pctTotal.likely.mean;
+
+    return { usable, out, total, pct, pctTotal, scoreLikely };
   }
-  const s = new Set(); const uniq = [];
-  for(const l of links){
-    const a = l.source < l.target ? l.source : l.target;
-    const b = l.source < l.target ? l.target : l.source;
-    const key = a + "|" + b;
-    if(s.has(key)) continue;
-    s.add(key);
-    uniq.push({source:a,target:b});
+
+  // Render bars + radar + top-lista
+  function renderIntentioner(res, scopedEvents) {
+    // KPI
+    if ($("#kEvents")) $("#kEvents").textContent = String(scopedEvents.length);
+    if ($("#kScore")) $("#kScore").textContent = `${res.scoreLikely}%`;
+
+    // Bars: per dimension + total
+    const host = $("#bars");
+    if (host) {
+      host.innerHTML = "";
+
+      const mkRow = (label, p) => {
+        const el = document.createElement("div");
+        el.className = "bar";
+        el.innerHTML = `
+          <div class="top">
+            <div class="name">${escapeHtml(label)}</div>
+            <div class="val">B / T / V</div>
+          </div>
+          <div class="small">
+            <b>Bästa</b>: ${p.best.mean}%–${p.best.max}% &nbsp;|&nbsp;
+            <b>Troligast</b>: ${p.likely.mean}%–${p.likely.max}% &nbsp;|&nbsp;
+            <b>Värsta</b>: ${p.worst.mean}%–${p.worst.max}%
+          </div>
+          <div class="track"><div class="fill" style="width:${p.likely.mean}%"></div></div>
+        `;
+        host.appendChild(el);
+      };
+
+      for (const d of DIM_ORDER) mkRow(d, res.pct[d]);
+      mkRow("Total", res.pctTotal);
+    }
+
+    // Radar: 3 polygoner (best/likely/worst) på mean-värden
+    renderRadar(res.pct);
+
+    // Top contributors: sortera på wr (viktad risk) och visa 15
+    const top = [...res.usable].sort((a, b) => b.wr - a.wr).slice(0, 15);
+    const list = $("#topList");
+    if (list) {
+      list.innerHTML = "";
+      top.forEach((c) => {
+        const e = c.e;
+        const el = document.createElement("div");
+        el.className = "item";
+        el.innerHTML = `
+          <div class="it">${escapeHtml(e._title || "Event")}</div>
+          <div class="im">${escapeHtml(e._cat || "–")} • ${escapeHtml(e._country || "–")} • ${escapeHtml(fmtDate(e._dt) || e.date || "")} •
+            dim: <b>${escapeHtml(c.dim)}</b> • risk: <b>${c.risk}</b> • ${escapeHtml(c.likelihood)} • +${c.wr.toFixed(2)}
+          </div>
+          ${e._url ? `<a href="${encodeURI(e._url)}" target="_blank" rel="noopener">Källa</a>` : ""}
+        `;
+        list.appendChild(el);
+      });
+    }
+
+    // pill
+    if ($("#pillIntent")) {
+      $("#pillIntent").textContent = `Urval: ${SCOPE.label} • ${scopedEvents.length} events`;
+    }
   }
 
-  return {phenomena, links};
-}
-function exportModelJSON(){ downloadJSON(computeModelFromEvents(), "intentioner-data.json"); }
+  function renderRadar(pctPerDim) {
+    const svgEl = $("#radar");
+    if (!svgEl || typeof d3 === "undefined") return;
 
-async function importEventsJSON(file){
-  const txt = await file.text();
-  const arr = JSON.parse(txt);
-  if(!Array.isArray(arr)) throw new Error("Import: väntade en array av events");
-  ALL = arr.map(normalizeEvent).filter(e=>e.cat);
-  document.getElementById("selCat").innerHTML = '<option value="ALL" selected>Alla</option>';
-  document.getElementById("selCountry").innerHTML = '<option value="ALL" selected>Alla</option>';
-  initUI();
-  refresh();
-}
+    const svg = d3.select(svgEl);
+    svg.selectAll("*").remove();
 
-// --- Refresh ---
-function refresh(){
-  applyFilters();
-  renderModel();
-  renderTimeline();
-  renderList();
-  refreshGraph();
-}
+    const W = 360, H = 300;
+    const cx = W / 2, cy = 150, r = 110;
 
-// --- Boot ---
-function boot(){
-  if(!window.EVENTS || !Array.isArray(window.EVENTS)){
-    alert("EVENTS saknas. Lägg in en EVENTS-array i events.js som const EVENTS = [...]");
-    return;
+    const axes = DIM_ORDER.length;
+    const angle = (i) => (Math.PI * 2 * i) / axes - Math.PI / 2;
+
+    // rings
+    [0.25, 0.5, 0.75, 1].forEach((rr) => {
+      svg.append("circle")
+        .attr("cx", cx).attr("cy", cy).attr("r", r * rr)
+        .attr("fill", "none").attr("stroke", "rgba(255,255,255,.10)");
+    });
+
+    // axes + labels
+    DIM_ORDER.forEach((lab, i) => {
+      const a = angle(i);
+      const x = cx + Math.cos(a) * r;
+      const y = cy + Math.sin(a) * r;
+      svg.append("line")
+        .attr("x1", cx).attr("y1", cy).attr("x2", x).attr("y2", y)
+        .attr("stroke", "rgba(255,255,255,.12)");
+
+      svg.append("text")
+        .attr("x", cx + Math.cos(a) * (r + 18))
+        .attr("y", cy + Math.sin(a) * (r + 18))
+        .attr("fill", "rgba(219,231,255,.78)")
+        .attr("font-size", 11)
+        .attr("text-anchor", Math.cos(a) > 0.2 ? "start" : (Math.cos(a) < -0.2 ? "end" : "middle"))
+        .attr("dominant-baseline", "middle")
+        .text(lab);
+    });
+
+    const scenDefs = [
+      { key: "best", label: "Bästa", fill: "rgba(219,231,255,.08)", stroke: "rgba(219,231,255,.25)" },
+      { key: "likely", label: "Troligast", fill: "rgba(219,231,255,.16)", stroke: "rgba(219,231,255,.55)" },
+      { key: "worst", label: "Värsta", fill: "rgba(219,231,255,.10)", stroke: "rgba(219,231,255,.35)" },
+    ];
+
+    scenDefs.forEach((sc) => {
+      const pts = DIM_ORDER.map((d, i) => {
+        const v = clamp((pctPerDim[d]?.[sc.key]?.mean ?? 0) / 100, 0, 1);
+        const a = angle(i);
+        return [cx + Math.cos(a) * r * v, cy + Math.sin(a) * r * v];
+      });
+
+      svg.append("polygon")
+        .attr("points", pts.map((p) => p.join(",")).join(" "))
+        .attr("fill", sc.fill)
+        .attr("stroke", sc.stroke)
+        .attr("stroke-width", 1.2);
+    });
   }
-  ALL = window.EVENTS.map(normalizeEvent).filter(e=>e.cat);
-  initUI();
-  refresh();
-}
-boot();
+
+  // -----------------------------
+  // 7) Graf (D3 force)
+  // -----------------------------
+  let svg, gRoot, sim;
+  let current = { events: [], nodes: [], links: [] };
+
+  function nodeRadius(n) {
+    if (n.type === "event") return 6 + Math.min(10, n.degree || 0);
+    if (n.type === "cat") return 12 + Math.min(12, n.degree || 0);
+    if (n.type === "country") return 12 + Math.min(12, n.degree || 0);
+    if (n.type === "kw") return 10 + Math.min(10, n.degree || 0);
+    return 10;
+  }
+
+  function buildGraph(events) {
+    const kwMin = Number($("#kwMin")?.value || 3);
+
+    const counts = keywordCounts(events);
+    const kw = Array.from(counts.entries())
+      .filter(([, v]) => v >= kwMin)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 140);
+
+    const kwSet = new Set(kw.map(([k]) => k));
+
+    const nodes = [];
+    const links = [];
+    const byId = new Map();
+
+    const add = (id, obj) => {
+      if (byId.has(id)) return byId.get(id);
+      const n = { id, degree: 0, ...obj };
+      byId.set(id, n);
+      nodes.push(n);
+      return n;
+    };
+
+    // cat/country/kw nodes
+    Array.from(new Set(events.map((e) => e._cat).filter(Boolean))).forEach((c) =>
+      add(`cat:${c}`, { type: "cat", label: c })
+    );
+    Array.from(new Set(events.map((e) => e._country).filter(Boolean))).forEach((c) =>
+      add(`ctry:${c}`, { type: "country", label: c })
+    );
+    kwSet.forEach((w) => add(`kw:${w}`, { type: "kw", label: w }));
+
+    // event nodes + links
+    events.forEach((e, idx) => {
+      const eid = `ev:${idx}`;
+      add(eid, { type: "event", label: e._title || "Event", ev: e, evIdx: idx });
+
+      if (e._cat) links.push({ source: eid, target: `cat:${e._cat}` });
+      if (e._country) links.push({ source: eid, target: `ctry:${e._country}` });
+
+      const toks = Array.from(
+        new Set(tokenize(`${e._title} ${e._summary} ${e._source}`).filter((w) => kwSet.has(w)))
+      ).slice(0, 8);
+
+      toks.forEach((w) => links.push({ source: eid, target: `kw:${w}` }));
+    });
+
+    // degrees
+    links.forEach((l) => {
+      const a = byId.get(l.source);
+      const b = byId.get(l.target);
+      if (a) a.degree++;
+      if (b) b.degree++;
+    });
+
+    // prune isolated non-event
+    const keep = new Set(nodes.filter((n) => n.type === "event" || n.degree > 0).map((n) => n.id));
+    const nodes2 = nodes.filter((n) => keep.has(n.id));
+    const keep2 = new Set(nodes2.map((n) => n.id));
+    const links2 = links.filter((l) => keep2.has(l.source) && keep2.has(l.target));
+
+    return { nodes: nodes2, links: links2 };
+  }
+
+  function initGraph() {
+    const host = $("#graph");
+    if (!host) return;
+
+    host.innerHTML = "";
+    const w = host.clientWidth || 900;
+    const h = host.clientHeight || 600;
+
+    svg = d3.select(host).append("svg").attr("width", w).attr("height", h);
+
+    const zoom = d3.zoom().scaleExtent([0.12, 4]).on("zoom", (ev) => gRoot.attr("transform", ev.transform));
+    svg.call(zoom);
+
+    gRoot = svg.append("g");
+    gRoot.append("g").attr("class", "links");
+    gRoot.append("g").attr("class", "nodes");
+    gRoot.append("g").attr("class", "labels");
+
+    // resize
+    const ro = new ResizeObserver(() => {
+      const ww = host.clientWidth || 900;
+      const hh = host.clientHeight || 600;
+      svg.attr("width", ww).attr("height", hh);
+      if (sim) {
+        sim.force("center", d3.forceCenter(ww / 2, hh / 2));
+        sim.alpha(0.25).restart();
+      }
+    });
+    ro.observe(host);
+
+    // zoom fit btn
+    on($("#btnZoomFit"), "click", () => zoomToFit(zoom));
+  }
+
+  function zoomToFit(zoom, pad = 0.15) {
+    if (!svg || !current.nodes.length) return;
+
+    const host = $("#graph");
+    const w = host?.clientWidth || 900;
+    const h = host?.clientHeight || 600;
+
+    const xs = current.nodes.map((n) => n.x).filter(Number.isFinite);
+    const ys = current.nodes.map((n) => n.y).filter(Number.isFinite);
+    if (!xs.length || !ys.length) return;
+
+    const minX = Math.min(...xs), maxX = Math.max(...xs);
+    const minY = Math.min(...ys), maxY = Math.max(...ys);
+    const dx = maxX - minX, dy = maxY - minY;
+
+    const cx = (minX + maxX) / 2;
+    const cy = (minY + maxY) / 2;
+
+    const scale = 0.92 / Math.max(dx / w, dy / h);
+    const s = clamp(scale, 0.12, 4);
+    const tx = w / 2 - s * cx;
+    const ty = h / 2 - s * cy;
+
+    const tr = d3.zoomIdentity.translate(tx, ty).scale(s);
+    svg.transition().duration(450).call(zoom.transform, tr);
+  }
+
+  function renderGraph(model) {
+    if (!gRoot) return;
+
+    current.nodes = model.nodes;
+    current.links = model.links;
+
+    const linkG = gRoot.select("g.links");
+    const nodeG = gRoot.select("g.nodes");
+    const labelG = gRoot.select("g.labels");
+
+    // links
+    const linkSel = linkG.selectAll("line").data(current.links, (d) => `${d.source}->${d.target}`);
+    linkSel.exit().remove();
+    linkSel.enter()
+      .append("line")
+      .attr("stroke", "rgba(255,255,255,.14)")
+      .attr("stroke-width", 1)
+      .attr("stroke-opacity", 0.55);
+
+    // nodes
+    const nodeSel = nodeG.selectAll("circle").data(current.nodes, (d) => d.id);
+    nodeSel.exit().remove();
+
+    const nodeEnter = nodeSel.enter()
+      .append("circle")
+      .attr("r", (d) => nodeRadius(d))
+      .attr("fill", "rgba(255,255,255,.06)")
+      .attr("stroke", "rgba(219,231,255,.75)")
+      .attr("stroke-width", 1.1)
+      .attr("cursor", "pointer")
+      .call(
+        d3.drag()
+          .on("start", (ev, d) => {
+            if (!ev.active && sim) sim.alphaTarget(0.25).restart();
+            d.fx = d.x; d.fy = d.y;
+          })
+          .on("drag", (ev, d) => {
+            d.fx = ev.x; d.fy = ev.y;
+          })
+          .on("end", (ev, d) => {
+            if (!ev.active && sim) sim.alphaTarget(0);
+          })
+      )
+      .on("click", (_, d) => onNodeClick(d));
+
+    // labels (non-event + top events)
+    const topEvents = current.nodes
+      .filter((n) => n.type === "event")
+      .sort((a, b) => (b.degree || 0) - (a.degree || 0))
+      .slice(0, 18)
+      .map((n) => n.id);
+
+    const labelNodes = current.nodes.filter((n) => n.type !== "event" || topEvents.includes(n.id));
+    const labelSel = labelG.selectAll("text").data(labelNodes, (d) => d.id);
+    labelSel.exit().remove();
+    labelSel.enter()
+      .append("text")
+      .text((d) => d.label)
+      .attr("font-size", (d) => (d.type === "event" ? 10 : 11))
+      .attr("fill", "rgba(219,231,255,.75)")
+      .attr("pointer-events", "none");
+
+    // simulation
+    const host = $("#graph");
+    const w = host?.clientWidth || 900;
+    const h = host?.clientHeight || 600;
+    if (sim) sim.stop();
+
+    sim = d3.forceSimulation(current.nodes)
+      .force("link", d3.forceLink(current.links).id((d) => d.id).distance(70).strength(0.6))
+      .force("charge", d3.forceManyBody().strength(-420))
+      .force("center", d3.forceCenter(w / 2, h / 2))
+      .force("collide", d3.forceCollide().radius((d) => nodeRadius(d) + 3).iterations(2))
+      .on("tick", () => {
+        linkG.selectAll("line")
+          .attr("x1", (d) => d.source.x).attr("y1", (d) => d.source.y)
+          .attr("x2", (d) => d.target.x).attr("y2", (d) => d.target.y);
+
+        nodeG.selectAll("circle")
+          .attr("cx", (d) => d.x).attr("cy", (d) => d.y);
+
+        labelG.selectAll("text")
+          .attr("x", (d) => d.x + 10).attr("y", (d) => d.y + 4);
+      });
+
+    if ($("#hudInfo")) $("#hudInfo").textContent = `${current.nodes.length} noder • ${current.links.length} länkar`;
+  }
+
+  function onNodeClick(n) {
+    if ($("#pillSel")) $("#pillSel").textContent = n.type;
+
+    if (n.type === "event") {
+      const e = n.ev;
+      const d = derive(e);
+
+      if ($("#detail")) {
+        $("#detail").innerHTML = `
+          <b>${escapeHtml(e._title || "Event")}</b><br>
+          <span style="color:var(--muted)">${escapeHtml(e._cat || "–")} • ${escapeHtml(e._country || "–")} • ${escapeHtml(fmtDate(e._dt) || e.date || "")}</span><br>
+          <span style="color:var(--muted)">dim: <b>${escapeHtml(d.dim)}</b> • risk: <b>${d.risk}</b> • ${escapeHtml(d.likelihood)}</span><br>
+          <span>${escapeHtml((e._summary || "").slice(0, 340))}${(e._summary || "").length > 340 ? "…" : ""}</span><br>
+          ${e._url ? `<a href="${encodeURI(e._url)}" target="_blank" rel="noopener">Öppna källa</a>` : ""}`;
+      }
+
+      // scope = enbart det eventet (index i aktuell filterlista)
+      SCOPE = { type: "event", label: e._title || "Event", idxSet: new Set([n.evIdx]) };
+    } else {
+      // scope = events som är länkade till noden
+      const id = n.id;
+      const evIds = new Set(
+        current.links
+          .filter((l) => (l.source.id || l.source) === id || (l.target.id || l.target) === id)
+          .map((l) => ((l.source.id || l.source) === id ? (l.target.id || l.target) : (l.source.id || l.source)))
+          .filter((x) => String(x).startsWith("ev:"))
+      );
+
+      const idxSet = new Set();
+      for (const evId of evIds) {
+        const m = String(evId).match(/^ev:(\d+)$/);
+        if (m) idxSet.add(Number(m[1]));
+      }
+
+      SCOPE = { type: n.type, label: n.label || n.id, idxSet };
+
+      if ($("#detail")) {
+        $("#detail").innerHTML = `<b>${escapeHtml(n.label || n.id)}</b><br><span style="color:var(--muted)">${idxSet.size} relaterade events</span>`;
+      }
+    }
+
+    if ($("#pillScope")) $("#pillScope").textContent = `Urval: ${SCOPE.label}`;
+    refreshIntentioner(); // uppdatera direkt
+  }
+
+  // -----------------------------
+  // 8) Refresh: graf + intentioner
+  // -----------------------------
+  function refreshIntentioner() {
+    // bas = filterlistan som grafen byggs på
+    const base = current.events || [];
+    let scoped = base;
+
+    if (SCOPE.idxSet && SCOPE.idxSet.size) {
+      scoped = base.filter((_, idx) => SCOPE.idxSet.has(idx));
+    }
+
+    const res = computeKapacitet(scoped);
+    renderIntentioner(res, scoped);
+  }
+
+  function refresh() {
+    const list = applyFilters();
+    current.events = list;
+
+    if ($("#subTitle")) $("#subTitle").textContent = `${DATA.length} events totalt`;
+    if ($("#pillCount")) $("#pillCount").textContent = `${list.length} i filter`;
+
+    // Om scope finns: behåll bara index som fortfarande finns
+    if (SCOPE.idxSet && SCOPE.idxSet.size) {
+      const still = new Set();
+      for (const i of SCOPE.idxSet) if (i >= 0 && i < list.length) still.add(i);
+      SCOPE.idxSet = still;
+      if (!still.size) setScopeAll();
+    }
+
+    if (!svg) initGraph();
+    const model = buildGraph(list);
+    renderGraph(model);
+
+    refreshIntentioner();
+  }
+
+  // -----------------------------
+  // 9) Fullscreen + reset + listeners
+  // -----------------------------
+  function setFullscreen(on) {
+    document.documentElement.classList.toggle("fullscreen", on);
+    const b = $("#btnFullscreen");
+    if (b) b.textContent = on ? "Avsluta helskärm" : "Helskärm (graf)";
+    setTab("graph");
+    setTimeout(() => refresh(), 80);
+  }
+
+  function initListeners() {
+    on($("#tabGraph"), "click", () => setTab("graph"));
+    on($("#tabIntent"), "click", () => setTab("intent"));
+
+    ["input", "change"].forEach((ev) => {
+      on($("#q"), ev, refresh);
+      on($("#dFrom"), ev, refresh);
+      on($("#dTo"), ev, refresh);
+      on($("#cat"), ev, refresh);
+      on($("#country"), ev, refresh);
+      on($("#limit"), ev, refresh);
+      on($("#kwMin"), ev, refresh);
+    });
+
+    on($("#btnReset"), "click", () => {
+      if ($("#q")) $("#q").value = "";
+      if ($("#cat")) $("#cat").value = "Alla";
+      if ($("#country")) $("#country").value = "Alla";
+      if (minDt && $("#dFrom")) $("#dFrom").value = fmtDate(minDt);
+      if (maxDt && $("#dTo")) $("#dTo").value = fmtDate(maxDt);
+      if ($("#limit")) $("#limit").value = String(Math.min(600, Math.max(200, DATA.length || 200)));
+      if ($("#kwMin")) $("#kwMin").value = "3";
+      setScopeAll();
+      refresh();
+    });
+
+    on($("#btnClearScope"), "click", setScopeAll);
+
+    on($("#btnFullscreen"), "click", () => {
+      const onFs = !document.documentElement.classList.contains("fullscreen");
+      setFullscreen(onFs);
+    });
+
+    window.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && document.documentElement.classList.contains("fullscreen")) {
+        setFullscreen(false);
+      }
+    });
+  }
+
+  // -----------------------------
+  // 10) Init
+  // -----------------------------
+  document.addEventListener("DOMContentLoaded", () => {
+    const ok = assertDom([
+      "tabGraph","tabIntent","viewGraph","viewIntent",
+      "graph","btnFullscreen","btnReset","btnZoomFit","btnClearScope",
+      "pillScope","pillCount","subTitle","hudInfo","pillSel","detail",
+      "q","dFrom","dTo","cat","country","limit","limitVal","kwMin","kwMinVal",
+      "pillIntent","kEvents","kScore","bars","radar","topList"
+    ]);
+
+    // Om index inte matchar – kör ändå graf om möjligt
+    initFilters();
+    initListeners();
+    setTab("graph");
+
+    // Om sidan inte har alla intentioner-ID:n kommer graf ändå funka.
+    refresh();
+
+    if (!ok) {
+      // inget mer: användaren ser vilka ID som saknas i subTitle/console
+    }
+  });
+
+})();
