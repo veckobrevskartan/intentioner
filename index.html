@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Svensk OSINT – Events → Intentioner (interaktiv)</title>
-  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="style.css?v=2" />
   <script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
 </head>
 <body>
@@ -13,7 +13,7 @@
       <div class="dot"></div>
       <div>
         <div class="title">EVENTS → INTENTIONER</div>
-        <div class="subtitle">Analys av EVENTS + kapacitetsmodell (Intentioner/Facilitering/Resurser/Tillfälle)</div>
+        <div class="subtitle">Analys av EVENTS + kapacitetsmodell</div>
       </div>
     </div>
 
@@ -88,36 +88,20 @@
             <label>Nyckelordsfilter</label>
             <input id="txtKW" placeholder="t.ex. cable, sabotage, drone..." />
           </div>
-
-          <div class="hint">
-            <b>Tips:</b> Lägg dina EVENTS i <code>events.js</code> som <code>const EVENTS = [...]</code>.
-          </div>
         </div>
       </div>
 
       <div class="card">
         <div class="cardhead">
           <h2>Kapacitetsmodell</h2>
-          <div class="pill" id="pillScenario">Viktad</div>
+          <div class="pill">Viktad</div>
         </div>
 
         <div class="grid2">
-          <div class="mini">
-            <div class="k">Total kapacitet</div>
-            <div class="v" id="capTotal">–</div>
-          </div>
-          <div class="mini">
-            <div class="k">Events i urval</div>
-            <div class="v" id="nEvents">–</div>
-          </div>
-          <div class="mini">
-            <div class="k">Kategorier i urval</div>
-            <div class="v" id="nCats">–</div>
-          </div>
-          <div class="mini">
-            <div class="k">Länder i urval</div>
-            <div class="v" id="nCountries">–</div>
-          </div>
+          <div class="mini"><div class="k">Total kapacitet</div><div class="v" id="capTotal">–</div></div>
+          <div class="mini"><div class="k">Events i urval</div><div class="v" id="nEvents">–</div></div>
+          <div class="mini"><div class="k">Kategorier i urval</div><div class="v" id="nCats">–</div></div>
+          <div class="mini"><div class="k">Länder i urval</div><div class="v" id="nCountries">–</div></div>
         </div>
 
         <div class="subgrid">
@@ -127,12 +111,8 @@
           </div>
           <div class="box">
             <div class="boxt">Radar</div>
-            <svg id="radar" viewBox="0 0 360 320" aria-label="radar"></svg>
+            <svg id="radar" viewBox="0 0 360 320"></svg>
           </div>
-        </div>
-
-        <div class="smallmuted">
-          Beräkning: varje event → (risk 1–5) × trolighetsvikt. Dimension bestäms av kategori via mappning i <code>app.js</code>.
         </div>
       </div>
 
@@ -141,8 +121,7 @@
           <h2>Tidslinje</h2>
           <div class="pill">Histogram</div>
         </div>
-        <svg id="timeline" viewBox="0 0 720 180" aria-label="timeline"></svg>
-        <div class="smallmuted">Antal events per vecka i urvalet.</div>
+        <svg id="timeline" viewBox="0 0 720 180"></svg>
       </div>
 
       <div class="card">
@@ -165,9 +144,7 @@
           <div class="pill">Kategori ↔ Land ↔ Nyckelord</div>
         </div>
         <div id="graph"></div>
-        <div class="smallmuted">
-          Dra noder, zooma (hjul), panorera (drag i tom yta). Klicka nod för att pin:a (låsa) eller släppa.
-        </div>
+        <div class="smallmuted">Dra noder. Zooma med hjul.</div>
       </div>
 
       <div class="card">
@@ -180,12 +157,7 @@
     </section>
   </main>
 
-  <footer class="footer">
-    <div>Statisk GitHub Pages. Ingen fetch behövs om du använder <code>events.js</code>.</div>
-    <div>Exportera intentioner-JSON om du vill återanvända i annan vy.</div>
-  </footer>
-
-  <script src="events.js"></script>
-  <script src="app.js"></script>
+  <script src="events.v2.js?v=2"></script>
+  <script src="app.v2.js?v=2"></script>
 </body>
 </html>
