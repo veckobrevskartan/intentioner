@@ -3,26 +3,14 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Intentioner – länkdiagram</title>
-
-  <!-- D3 (force graph) -->
+  <title>Intentioner – graf + vektorer (EVENTS)</title>
   <script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
 
   <style>
     :root{
-      --bg:#0b0f14;
-      --panel:#0f1621;
-      --panel2:#101b29;
-      --txt:#dbe7ff;
-      --muted:#98a7c2;
-      --stroke:#1e2a3d;
-      --chip:#13243a;
-      --btn:#162944;
-      --btn2:#1a3357;
-      --danger:#4b1f28;
-      --ok:#173a2a;
-      --shadow: 0 10px 30px rgba(0,0,0,.35);
-      --radius: 14px;
+      --bg:#0b0f14; --txt:#dbe7ff; --muted:#98a7c2;
+      --panel:rgba(255,255,255,.03); --stroke:rgba(255,255,255,.08);
+      --shadow: 0 10px 30px rgba(0,0,0,.35); --r:14px;
     }
     *{box-sizing:border-box}
     body{
@@ -38,36 +26,35 @@
       background: rgba(10,14,20,.75);
       backdrop-filter: blur(10px);
       border-bottom:1px solid rgba(255,255,255,.06);
+      gap:10px;
     }
-    header .title{
-      display:flex; gap:10px; align-items:baseline;
+    .title{display:flex; gap:10px; align-items:baseline; flex-wrap:wrap}
+    h1{font-size:15px; margin:0}
+    .sub{font-size:12px; color:var(--muted)}
+    .tabs{display:flex; gap:8px; align-items:center; flex-wrap:wrap}
+    .tab{
+      border:1px solid rgba(255,255,255,.09);
+      background: rgba(255,255,255,.02);
+      color:var(--txt);
+      padding:8px 10px;
+      border-radius:999px;
+      font-size:12px;
+      cursor:pointer;
+      user-select:none;
     }
-    header h1{
-      font-size:15px; margin:0; letter-spacing:.2px;
-    }
-    header .sub{
-      font-size:12px; color:var(--muted);
-    }
-    header .actions{
-      display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end;
-    }
+    .tab.active{background: rgba(255,255,255,.06); border-color: rgba(255,255,255,.14)}
+    .actions{display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end}
     .btn{
-      appearance:none; border:1px solid rgba(255,255,255,.09);
-      background: linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,.01));
+      border:1px solid rgba(255,255,255,.09);
+      background: rgba(255,255,255,.02);
       color:var(--txt);
       padding:8px 10px;
       border-radius:12px;
       font-size:12px;
       cursor:pointer;
-      transition: transform .05s ease, background .15s ease, border-color .15s ease;
       user-select:none;
     }
-    .btn:hover{ background: rgba(255,255,255,.04); border-color: rgba(255,255,255,.14); }
-    .btn:active{ transform: translateY(1px); }
-    .btn.secondary{ background: rgba(255,255,255,.02); }
-    .btn.danger{ background: rgba(255,255,255,.02); border-color: rgba(255,100,120,.25); }
-    .btn.ok{ background: rgba(255,255,255,.02); border-color: rgba(110,255,170,.25); }
-
+    .btn:hover{background: rgba(255,255,255,.04)}
     main{
       display:grid;
       grid-template-columns: 360px 1fr;
@@ -75,42 +62,32 @@
       padding:12px;
       align-items:start;
     }
-    @media (max-width: 980px){
-      main{ grid-template-columns: 1fr; }
-    }
+    @media (max-width: 980px){ main{grid-template-columns:1fr} }
 
     .card{
-      background: linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,.015));
+      background: var(--panel);
       border:1px solid rgba(255,255,255,.07);
-      border-radius: var(--radius);
+      border-radius: var(--r);
       box-shadow: var(--shadow);
       overflow:hidden;
     }
-    .card .head{
+    .head{
       display:flex; align-items:center; justify-content:space-between;
-      padding:12px 12px 10px 12px;
+      padding:12px;
       border-bottom:1px solid rgba(255,255,255,.06);
+      gap:10px;
     }
-    .card .head h2{
-      margin:0; font-size:13px; letter-spacing:.2px;
-    }
+    .head h2{margin:0; font-size:13px}
     .pill{
-      font-size:11px;
-      color:var(--muted);
+      font-size:11px; color:var(--muted);
       background: rgba(255,255,255,.03);
       border:1px solid rgba(255,255,255,.08);
-      padding:6px 10px;
-      border-radius:999px;
+      padding:6px 10px; border-radius:999px;
       white-space:nowrap;
     }
-    .card .body{ padding:12px; }
+    .body{padding:12px}
 
-    label{
-      display:block;
-      font-size:11px;
-      color:var(--muted);
-      margin:10px 0 6px;
-    }
+    label{display:block; font-size:11px; color:var(--muted); margin:10px 0 6px}
     input[type="text"], select, input[type="date"]{
       width:100%;
       border-radius:12px;
@@ -120,149 +97,113 @@
       padding:10px 10px;
       outline:none;
     }
-    input[type="range"]{ width:100%; }
-    .row{ display:grid; grid-template-columns: 1fr 1fr; gap:10px; }
-    .small{
-      font-size:12px;
-      color:var(--muted);
-      line-height:1.35;
-      margin-top:10px;
+    input[type="range"]{width:100%}
+    .row{display:grid; grid-template-columns:1fr 1fr; gap:10px}
+    .small{font-size:12px; color:var(--muted); line-height:1.35; margin-top:10px}
+
+    .view{display:none}
+    .view.active{display:block}
+
+    /* graph */
+    .graphWrap{position:relative; height: calc(100vh - 120px); min-height:520px;}
+    #graph{width:100%; height:100%;}
+    .hud{
+      position:absolute; left:12px; top:12px;
+      display:flex; gap:8px; flex-wrap:wrap;
     }
-    .kpis{
-      display:grid;
-      grid-template-columns: 1fr 1fr;
-      gap:10px;
-      margin-top:10px;
-    }
+
+    /* intentioner */
+    .grid2{display:grid; grid-template-columns:1fr 1fr; gap:10px}
     .kpi{
       background: rgba(255,255,255,.02);
       border:1px solid rgba(255,255,255,.06);
-      border-radius: 12px;
+      border-radius:12px;
       padding:10px;
     }
-    .kpi .v{ font-size:16px; font-weight:700; margin-bottom:3px; }
-    .kpi .t{ font-size:11px; color:var(--muted); }
-
-    /* Graph area */
-    .graphWrap{
-      position:relative;
-      height: calc(100vh - 86px);
-      min-height: 520px;
-    }
-    #graph{
-      width:100%;
-      height:100%;
-      background: radial-gradient(900px 600px at 45% 10%, rgba(40,90,160,.14), rgba(0,0,0,0) 60%),
-                  radial-gradient(900px 600px at 65% 85%, rgba(120,70,180,.10), rgba(0,0,0,0) 60%);
-    }
-    .graphHud{
-      position:absolute; inset:12px 12px auto 12px;
-      display:flex; gap:8px; flex-wrap:wrap;
-      pointer-events:none;
-    }
-    .graphHud .pill{ pointer-events:auto; }
-    .graphHud .btn{ pointer-events:auto; }
-
-    /* Details */
-    .detail{
-      margin-top:12px;
-      max-height: 240px;
-      overflow:auto;
-      padding-right:6px;
-    }
-    .detail .dtitle{
-      font-size:13px; font-weight:700; margin:0 0 6px;
-    }
-    .detail .dmeta{
-      font-size:12px; color:var(--muted);
-      margin-bottom:8px;
-    }
-    .detail a{ color:#b8d4ff; text-decoration:none; }
-    .detail a:hover{ text-decoration:underline; }
-
-    /* Fullscreen helper */
-    .fullscreen .graphWrap{
-      position:fixed;
-      inset:0;
-      z-index:9999;
-      height:100vh !important;
-      border-radius:0;
-      padding:0;
-    }
-    .fullscreen main{ display:block; padding:0; }
-    .fullscreen header{ display:none; }
-    .fullscreen .leftCol{ display:none; }
-    .fullscreen .graphCard{
-      border-radius:0;
-      border:none;
-      box-shadow:none;
-    }
-
-    /* Node/link styles (svg) */
-    .legend{
-      display:flex; gap:10px; flex-wrap:wrap;
+    .kpi .v{font-size:16px; font-weight:700; margin-bottom:3px}
+    .kpi .t{font-size:11px; color:var(--muted)}
+    .bars .bar{
+      border:1px solid rgba(255,255,255,.08);
+      background: rgba(0,0,0,.22);
+      border-radius:12px;
+      padding:10px;
       margin-top:10px;
     }
-    .chip{
-      font-size:11px;
-      color:var(--muted);
-      background: rgba(255,255,255,.02);
-      border:1px solid rgba(255,255,255,.06);
-      padding:7px 10px;
+    .bars .top{display:flex; justify-content:space-between; gap:10px}
+    .bars .name{font-size:12px; font-weight:700}
+    .bars .val{font-size:12px; color:var(--muted)}
+    .bars .track{
+      margin-top:8px;
+      height:10px;
       border-radius:999px;
+      background: rgba(255,255,255,.06);
+      overflow:hidden;
     }
+    .bars .fill{
+      height:100%;
+      background: rgba(219,231,255,.35);
+      width:0%;
+    }
+    .list{display:flex; flex-direction:column; gap:8px; margin-top:10px; max-height:260px; overflow:auto; padding-right:6px}
+    .item{
+      border:1px solid rgba(255,255,255,.07);
+      background: rgba(255,255,255,.02);
+      border-radius:12px;
+      padding:10px;
+    }
+    .item .it{font-size:12px; font-weight:700; margin-bottom:4px}
+    .item .im{font-size:11px; color:var(--muted); margin-bottom:6px}
+    .item a{color:#b8d4ff; text-decoration:none}
+    .item a:hover{text-decoration:underline}
 
-    .toast{
-      position: fixed;
-      right: 14px; bottom: 14px;
-      background: rgba(12,18,26,.92);
-      border:1px solid rgba(255,255,255,.08);
-      border-radius: 12px;
-      padding: 10px 12px;
-      color: var(--txt);
-      font-size: 12px;
-      box-shadow: var(--shadow);
-      max-width: 520px;
-      display:none;
-      z-index: 10000;
-    }
-    .toast b{ color: #cfe2ff; }
+    /* “UI-helskärm” */
+    .fullscreen header{display:none}
+    .fullscreen main{display:block; padding:0}
+    .fullscreen .leftCol{display:none}
+    .fullscreen .graphCard{border-radius:0;border:none;box-shadow:none}
+    .fullscreen .graphWrap{position:fixed; inset:0; z-index:9999; height:100vh !important;}
   </style>
 </head>
 
 <body>
   <header>
     <div class="title">
-      <h1>Intentioner – länkdiagram</h1>
+      <h1>Intentioner</h1>
       <div class="sub" id="subTitle">Laddar…</div>
     </div>
+
+    <div class="tabs">
+      <button class="tab active" id="tabGraph">Graf</button>
+      <button class="tab" id="tabIntent">Intentioner</button>
+      <span class="pill" id="pillScope">Urval: Alla</span>
+    </div>
+
     <div class="actions">
-      <button class="btn secondary" id="btnReset">Återställ vy</button>
-      <button class="btn" id="btnCenter">Centrera</button>
-      <button class="btn ok" id="btnFullscreen">Helskärm (graf)</button>
-      <button class="btn secondary" id="btnExport">Exportera filtrerad JSON</button>
+      <button class="btn" id="btnFullscreen">Helskärm (graf)</button>
+      <button class="btn" id="btnReset">Återställ</button>
     </div>
   </header>
 
   <main>
+    <!-- LEFT -->
     <section class="leftCol">
       <div class="card">
         <div class="head">
-          <h2>Filter & styrning</h2>
-          <div class="pill" id="pillCount">–</div>
+          <h2>Filter</h2>
+          <span class="pill" id="pillCount">–</span>
         </div>
         <div class="body">
-          <label>Sök (titel/summary/källa)</label>
-          <input type="text" id="q" placeholder="t.ex. cable, sabotage, drone…" />
+          <label>Sök</label>
+          <input id="q" type="text" placeholder="t.ex. cable, sabotage, drone…" />
 
           <div class="row">
             <div>
               <label>Från datum</label>
-              <input type="date" id="dFrom" />
+              <input id="dFrom" type="date" />
             </div>
             <div>
               <label>Till datum</label>
-              <input type="date" id="dTo" />
+              <input id="dTo" type="date" />
             </div>
           </div>
 
@@ -277,46 +218,16 @@
             </div>
           </div>
 
-          <label>Max antal events i grafen</label>
-          <input type="range" id="limit" min="50" max="1200" step="50" />
+          <label>Max events i urval</label>
+          <input id="limit" type="range" min="50" max="2000" step="50" />
           <div class="small"><span id="limitVal">–</span></div>
 
           <label>Nyckelord: min förekomst</label>
-          <input type="range" id="kwMin" min="2" max="20" step="1" />
+          <input id="kwMin" type="range" min="2" max="25" step="1" />
           <div class="small"><span id="kwMinVal">–</span></div>
 
-          <label>Force-styrka (layout)</label>
-          <input type="range" id="force" min="1" max="100" step="1" />
-          <div class="small"><span id="forceVal">–</span></div>
-
-          <div class="legend">
-            <span class="chip">Event</span>
-            <span class="chip">Kategori</span>
-            <span class="chip">Land</span>
-            <span class="chip">Nyckelord</span>
-          </div>
-
-          <div class="kpis">
-            <div class="kpi">
-              <div class="v" id="kEvents">–</div>
-              <div class="t">Events i urval</div>
-            </div>
-            <div class="kpi">
-              <div class="v" id="kLinks">–</div>
-              <div class="t">Länkar i graf</div>
-            </div>
-            <div class="kpi">
-              <div class="v" id="kNodes">–</div>
-              <div class="t">Noder i graf</div>
-            </div>
-            <div class="kpi">
-              <div class="v" id="kSpan">–</div>
-              <div class="t">Tidsintervall</div>
-            </div>
-          </div>
-
           <div class="small">
-            Tips: om grafen är tom – kontrollera att <b>events.js</b> ligger i samma mapp som denna sida och att filnamnet matchar exakt (skiftläge spelar roll på GitHub Pages).
+            Klicka en nod i grafen för att sätta “Urval: noden”. Intentioner-fliken räknar då på samma delmängd.
           </div>
         </div>
       </div>
@@ -324,86 +235,102 @@
       <div class="card" style="margin-top:12px;">
         <div class="head">
           <h2>Detalj</h2>
-          <div class="pill" id="pillSel">–</div>
+          <span class="pill" id="pillSel">–</span>
         </div>
         <div class="body">
-          <div id="detailEmpty" class="small">Klicka en nod i grafen för att se detaljer.</div>
-          <div id="detail" class="detail" style="display:none;"></div>
+          <div id="detail" class="small">Klicka en nod i grafen.</div>
         </div>
       </div>
     </section>
 
+    <!-- RIGHT -->
     <section class="rightCol">
-      <div class="card graphCard">
-        <div class="head">
-          <h2>Länkdiagram</h2>
-          <div class="pill" id="pillMode">Event ↔ Kategori ↔ Land + Nyckelord</div>
-        </div>
-        <div class="body" style="padding:0;">
-          <div class="graphWrap" id="graphWrap">
-            <div class="graphHud">
-              <span class="pill" id="hudInfo">–</span>
-              <button class="btn secondary" id="btnZoomFit">Zooma till urval</button>
-              <button class="btn secondary" id="btnPause">Pausa</button>
+      <!-- View: Graph -->
+      <div class="view active" id="viewGraph">
+        <div class="card graphCard">
+          <div class="head">
+            <h2>Länkdiagram</h2>
+            <span class="pill" id="hudInfo">–</span>
+          </div>
+          <div class="body" style="padding:0;">
+            <div class="graphWrap" id="graphWrap">
+              <div class="hud">
+                <button class="btn" id="btnZoomFit">Zooma till urval</button>
+                <button class="btn" id="btnClearScope">Rensa urval (Alla)</button>
+              </div>
+              <div id="graph"></div>
             </div>
-            <div id="graph"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- View: Intentioner -->
+      <div class="view" id="viewIntent">
+        <div class="card">
+          <div class="head">
+            <h2>Intentioner – vektorer</h2>
+            <span class="pill" id="pillIntent">–</span>
+          </div>
+          <div class="body">
+            <div class="grid2">
+              <div class="kpi">
+                <div class="v" id="kEvents">–</div>
+                <div class="t">Events i beräkning</div>
+              </div>
+              <div class="kpi">
+                <div class="v" id="kScore">–</div>
+                <div class="t">Total “kapacitet” (viktad)</div>
+              </div>
+            </div>
+
+            <div class="bars" id="bars"></div>
+
+            <div style="margin-top:12px;">
+              <div class="pill">Radar</div>
+              <svg id="radar" viewBox="0 0 360 300" style="width:100%;height:auto;margin-top:8px;"></svg>
+            </div>
+
+            <div style="margin-top:12px;">
+              <div class="pill">Största bidrag (topp 15)</div>
+              <div class="list" id="topList"></div>
+            </div>
           </div>
         </div>
       </div>
     </section>
   </main>
 
-  <div class="toast" id="toast"></div>
-
-  <!-- 1) Viktigt: ladda events.js som klassiskt script (INTE module) -->
+  <!-- events.js måste definiera EVENTS + window.EVENTS = EVENTS -->
   <script src="./events.js"></script>
 
-  <!-- 2) App -->
   <script>
-    // ---------- helpers ----------
+    // -----------------------------
+    // 0) Grund: hämta EVENTS
+    // -----------------------------
+    const RAW = Array.isArray(window.EVENTS) ? window.EVENTS : [];
+    if(!RAW.length){
+      document.getElementById('subTitle').textContent = '0 events (events.js saknas?)';
+      alert("EVENTS saknas eller är tom. Kontrollera events.js och att den avslutas med window.EVENTS = EVENTS;");
+    }
+
     const $ = (s)=>document.querySelector(s);
-
-    function toast(msg){
-      const t=$('#toast');
-      t.innerHTML = msg;
-      t.style.display='block';
-      clearTimeout(toast._tm);
-      toast._tm=setTimeout(()=>t.style.display='none', 2800);
-    }
-
-    function normalizeStr(s){
-      return (s||'').toString().toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g,'');
-    }
-
-    function parseDate(d){
+    const normalizeStr = (s)=> (s||'').toString().toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g,'');
+    const parseDate = (d)=>{
       if(!d) return null;
-      // supports "YYYY-MM-DD" and variants
       const m = String(d).match(/^(\d{4})-(\d{2})-(\d{2})/);
       if(!m) return null;
-      const dt = new Date(Number(m[1]), Number(m[2])-1, Number(m[3]));
-      return isNaN(dt.getTime()) ? null : dt;
-    }
-
-    function fmtDate(dt){
+      const dt = new Date(+m[1], +m[2]-1, +m[3]);
+      return isNaN(dt) ? null : dt;
+    };
+    const fmtDate = (dt)=>{
       if(!dt) return '–';
-      const y=dt.getFullYear();
-      const m=String(dt.getMonth()+1).padStart(2,'0');
-      const d=String(dt.getDate()).padStart(2,'0');
+      const y=dt.getFullYear(), m=String(dt.getMonth()+1).padStart(2,'0'), d=String(dt.getDate()).padStart(2,'0');
       return `${y}-${m}-${d}`;
-    }
+    };
 
-    function safeArr(x){ return Array.isArray(x) ? x : []; }
-
-    // ---------- validate EVENTS ----------
-    // In classic scripts, top-level const is global binding (accessible here).
-    // If events.js is missing or loaded as module elsewhere, this will be undefined.
-    if(typeof EVENTS === 'undefined'){
-      // Gör felet tydligt utan att sidan kraschar
-      $('#subTitle').textContent = 'Hittar inte EVENTS';
-      toast('<b>EVENTS saknas.</b> Lägg <b>events.js</b> i samma mapp som <b>index.html</b> och se till att filen innehåller <code>const EVENTS = [...]</code>.');
-    }
-
-    const RAW = (typeof EVENTS !== 'undefined') ? safeArr(EVENTS) : [];
+    // -----------------------------
+    // 1) Normalisera events
+    // -----------------------------
     const DATA = RAW.map(e=>{
       const date = e.date || e.time || e.dt || e.datetime || '';
       return {
@@ -414,78 +341,98 @@
         _country: (e.country || e.land || '').toString().trim(),
         _title: (e.title || e.name || '').toString(),
         _summary: (e.summary || e.desc || e.description || '').toString(),
-        _source: (e.source || '').toString(),
-        _url: (e.url || e.link || '').toString()
+        _url: (e.url || e.link || '').toString(),
+        // risk/trolighet kan du ha eller inte – defaults nedan
+        _risk: Number(e.risk ?? e.severity ?? 3) || 3,
+        _likelihood: (e.likelihood || e.trolighet || e.confidence || '').toString().toLowerCase().trim()
       };
-    }).filter(e=>e._title || e._summary || e._url);
+    });
 
-    // ---------- build filter options ----------
-    const allCats = ['Alla', ...Array.from(new Set(DATA.map(e=>e._cat).filter(Boolean))).sort()];
-    const allCountries = ['Alla', ...Array.from(new Set(DATA.map(e=>e._country).filter(Boolean))).sort()];
+    // -----------------------------
+    // 2) Flikar
+    // -----------------------------
+    function setTab(which){
+      $('#tabGraph').classList.toggle('active', which==='graph');
+      $('#tabIntent').classList.toggle('active', which==='intent');
+      $('#viewGraph').classList.toggle('active', which==='graph');
+      $('#viewIntent').classList.toggle('active', which==='intent');
+    }
+    $('#tabGraph').addEventListener('click', ()=>setTab('graph'));
+    $('#tabIntent').addEventListener('click', ()=>setTab('intent'));
 
+    // -----------------------------
+    // 3) Filter UI
+    // -----------------------------
     function fillSelect(sel, arr){
-      sel.innerHTML = '';
+      sel.innerHTML='';
       arr.forEach(v=>{
         const o=document.createElement('option');
         o.value=v; o.textContent=v;
         sel.appendChild(o);
       });
     }
+    const cats = ['Alla', ...Array.from(new Set(DATA.map(e=>e._cat).filter(Boolean))).sort()];
+    const ctrs = ['Alla', ...Array.from(new Set(DATA.map(e=>e._country).filter(Boolean))).sort()];
+    fillSelect($('#cat'), cats);
+    fillSelect($('#country'), ctrs);
 
-    fillSelect($('#cat'), allCats);
-    fillSelect($('#country'), allCountries);
-
-    // default dates from min/max
     const dates = DATA.map(e=>e._dt).filter(Boolean).sort((a,b)=>a-b);
     const minDt = dates[0] || null;
     const maxDt = dates[dates.length-1] || null;
     if(minDt) $('#dFrom').value = fmtDate(minDt);
     if(maxDt) $('#dTo').value = fmtDate(maxDt);
 
-    // sliders default
     $('#limit').value = String(Math.min(600, Math.max(200, DATA.length)));
     $('#kwMin').value = '3';
-    $('#force').value = '55';
 
-    function updateSliderLabels(){
+    function updateSliders(){
       $('#limitVal').textContent = `${$('#limit').value} st`;
       $('#kwMinVal').textContent = `${$('#kwMin').value}`;
-      $('#forceVal').textContent = `${$('#force').value}`;
     }
-    updateSliderLabels();
+    updateSliders();
 
-    // ---------- keyword extraction ----------
-    const STOP = new Set([
-      'och','att','som','det','den','en','ett','i','på','av','för','med','till','om','från','under','efter','innan',
+    // -----------------------------
+    // 4) “Scope” = urval via grafklick
+    // -----------------------------
+    let SCOPE = { type:'all', id:null, label:'Alla', eventIdxSet:null }; // eventIdxSet = Set(index i current list)
+
+    function setScopeAll(){
+      SCOPE = { type:'all', id:null, label:'Alla', eventIdxSet:null };
+      $('#pillScope').textContent = `Urval: Alla`;
+      $('#pillSel').textContent = '–';
+      $('#detail').textContent = 'Klicka en nod i grafen.';
+      refresh(); // graf+intentioner
+    }
+    $('#btnClearScope').addEventListener('click', setScopeAll);
+
+    // -----------------------------
+    // 5) Nyckelord
+    // -----------------------------
+    const STOP = new Set(['och','att','som','det','den','en','ett','i','på','av','för','med','till','om','från','under','efter','innan',
       'the','a','an','and','or','of','to','in','on','for','with','from','at','by','as','is','are','was','were','be',
-      'har','ha','hade','får','fick','kan','kunde','ska','skulle','säger','uppger','enligt','mot','vid','nu','där','då',
-      'sverige','sweden','norge','norway','danmark','denmark','finland','finland','tyskland','germany','frankrike','france',
-      'uk','usa','eu'
-    ]);
-
+      'har','ha','hade','kan','kunde','ska','skulle','säger','uppger','enligt','mot','vid','nu','där','då']);
     function tokenize(text){
       const t = normalizeStr(text)
         .replace(/https?:\/\/\S+/g,' ')
         .replace(/[^\p{L}\p{N}]+/gu,' ')
         .trim();
       if(!t) return [];
-      const parts = t.split(/\s+/g).filter(Boolean);
-      return parts
-        .map(w=>w.replace(/^\d+$/,''))
-        .filter(w=>w && w.length>=4 && !STOP.has(w));
+      return t.split(/\s+/g).filter(Boolean)
+        .filter(w=>w.length>=4 && !STOP.has(w));
     }
-
-    function buildKeywordCounts(events){
-      const c = new Map();
+    function keywordCounts(events){
+      const c=new Map();
       events.forEach(e=>{
-        const toks = tokenize(`${e._title} ${e._summary} ${e._source}`);
-        toks.forEach(w=> c.set(w, (c.get(w)||0)+1));
+        tokenize(`${e._title} ${e._summary}`).forEach(w=>c.set(w,(c.get(w)||0)+1));
       });
       return c;
     }
 
-    // ---------- filtering ----------
+    // -----------------------------
+    // 6) Filtrera events
+    // -----------------------------
     function applyFilters(){
+      updateSliders();
       const q = normalizeStr($('#q').value);
       const cat = $('#cat').value;
       const country = $('#country').value;
@@ -494,508 +441,436 @@
       const limit = Number($('#limit').value);
 
       let list = DATA.filter(e=>{
-        if(cat !== 'Alla' && e._cat !== cat) return false;
-        if(country !== 'Alla' && e._country !== country) return false;
-
+        if(cat!=='Alla' && e._cat!==cat) return false;
+        if(country!=='Alla' && e._country!==country) return false;
         if(from && e._dt && e._dt < from) return false;
         if(to && e._dt && e._dt > to) return false;
-
         if(q){
-          const hay = normalizeStr(`${e._title} ${e._summary} ${e._source} ${e._country} ${e._cat}`);
+          const hay = normalizeStr(`${e._title} ${e._summary} ${e._cat} ${e._country}`);
           if(!hay.includes(q)) return false;
         }
         return true;
       });
 
-      // sort by date desc if possible
-      list.sort((a,b)=>{
-        const ad=a._dt ? a._dt.getTime() : 0;
-        const bd=b._dt ? b._dt.getTime() : 0;
-        return bd-ad;
-      });
-
-      // cap
-      if(list.length > limit) list = list.slice(0, limit);
-
+      list.sort((a,b)=>(b._dt?.getTime()||0)-(a._dt?.getTime()||0));
+      if(list.length>limit) list=list.slice(0,limit);
       return list;
     }
 
-    // ---------- graph construction ----------
-    let svg, gRoot, sim, linkSel, nodeSel, labelSel;
-    let current = { nodes:[], links:[], events:[] };
-    let paused = false;
-
-    function typeColor(t){
-      // inga hårdkodade färger? vi använder ändå nyanser i UI – men här behövs en minimal typmarkör
-      // Vi använder stroke-opacity och storlek som primär signal.
-      switch(t){
-        case 'event': return 'rgba(219,231,255,.9)';
-        case 'cat': return 'rgba(152,167,194,.95)';
-        case 'country': return 'rgba(152,167,194,.95)';
-        case 'kw': return 'rgba(152,167,194,.95)';
-        default: return 'rgba(219,231,255,.9)';
-      }
-    }
+    // -----------------------------
+    // 7) Graf (D3 force)
+    // -----------------------------
+    let svg, gRoot, sim, current = {events:[], nodes:[], links:[]};
 
     function nodeRadius(n){
-      if(n.type==='event') return 6 + Math.min(10, (n.degree||0));
-      if(n.type==='cat') return 10 + Math.min(14, (n.degree||0));
-      if(n.type==='country') return 10 + Math.min(14, (n.degree||0));
-      if(n.type==='kw') return 8 + Math.min(12, (n.degree||0));
-      return 8;
+      if(n.type==='event') return 6 + Math.min(10, n.degree||0);
+      if(n.type==='cat') return 12 + Math.min(12, n.degree||0);
+      if(n.type==='country') return 12 + Math.min(12, n.degree||0);
+      if(n.type==='kw') return 10 + Math.min(10, n.degree||0);
+      return 10;
     }
 
     function buildGraph(events){
-      // nodes:
-      // - event nodes: id = ev:<idx>
-      // - category nodes: cat:<name>
-      // - country nodes: ctry:<code>
-      // - keyword nodes: kw:<word>
       const kwMin = Number($('#kwMin').value);
+      const counts = keywordCounts(events);
+      const kw = Array.from(counts.entries()).filter(([,v])=>v>=kwMin).sort((a,b)=>b[1]-a[1]).slice(0,120);
+      const kwSet = new Set(kw.map(([k])=>k));
 
-      const kwCounts = buildKeywordCounts(events);
-      const topKeywords = Array.from(kwCounts.entries())
-        .filter(([,v])=>v>=kwMin)
-        .sort((a,b)=>b[1]-a[1])
-        .slice(0, 120); // cap keywords
+      const nodes=[], links=[], byId=new Map();
+      const add=(id,obj)=>{ if(byId.has(id)) return byId.get(id); const n={id,degree:0,...obj}; byId.set(id,n); nodes.push(n); return n; };
 
-      const kwSet = new Set(topKeywords.map(([k])=>k));
+      // cat/country/kw nodes
+      Array.from(new Set(events.map(e=>e._cat).filter(Boolean))).forEach(c=>add(`cat:${c}`,{type:'cat',label:c}));
+      Array.from(new Set(events.map(e=>e._country).filter(Boolean))).forEach(c=>add(`ctry:${c}`,{type:'country',label:c}));
+      kwSet.forEach(w=>add(`kw:${w}`,{type:'kw',label:w}));
 
-      const nodes = [];
-      const links = [];
-      const nodeById = new Map();
-
-      function addNode(id, obj){
-        if(nodeById.has(id)) return nodeById.get(id);
-        const n = { id, ...obj, degree:0 };
-        nodeById.set(id, n);
-        nodes.push(n);
-        return n;
-      }
-
-      // add cat/country upfront to stabilize layout a bit
-      const catsIn = Array.from(new Set(events.map(e=>e._cat).filter(Boolean))).sort();
-      const ctryIn = Array.from(new Set(events.map(e=>e._country).filter(Boolean))).sort();
-
-      catsIn.forEach(c=> addNode(`cat:${c}`, { type:'cat', name:c, label:c }));
-      ctryIn.forEach(c=> addNode(`ctry:${c}`, { type:'country', name:c, label:c }));
-
-      kwSet.forEach(w=> addNode(`kw:${w}`, { type:'kw', name:w, label:w }));
-
-      // events and links
       events.forEach((e, idx)=>{
-        const eid = `ev:${idx}`;
-        addNode(eid, {
-          type:'event',
-          label: e._title || 'Event',
-          ev: e
-        });
-
-        if(e._cat){
-          links.push({ source: eid, target:`cat:${e._cat}`, kind:'cat' });
-        }
-        if(e._country){
-          links.push({ source: eid, target:`ctry:${e._country}`, kind:'country' });
-        }
-
-        // keywords
-        const toks = tokenize(`${e._title} ${e._summary} ${e._source}`);
-        const uniq = Array.from(new Set(toks.filter(w=>kwSet.has(w)))).slice(0, 8); // cap per event
-        uniq.forEach(w=>{
-          links.push({ source: eid, target:`kw:${w}`, kind:'kw' });
-        });
+        const eid=`ev:${idx}`;
+        add(eid,{type:'event',label:e._title||'Event', ev:e, evIdx: idx});
+        if(e._cat) links.push({source:eid, target:`cat:${e._cat}`});
+        if(e._country) links.push({source:eid, target:`ctry:${e._country}`});
+        const toks = Array.from(new Set(tokenize(`${e._title} ${e._summary}`).filter(w=>kwSet.has(w)))).slice(0,8);
+        toks.forEach(w=>links.push({source:eid, target:`kw:${w}`}));
       });
 
-      // compute degrees
       links.forEach(l=>{
-        const a = nodeById.get(l.source);
-        const b = nodeById.get(l.target);
-        if(a) a.degree++;
-        if(b) b.degree++;
+        const a=byId.get(l.source), b=byId.get(l.target);
+        if(a) a.degree++; if(b) b.degree++;
       });
 
-      // prune isolated non-event nodes
-      const keep = new Set(nodes.filter(n=>n.type==='event' || n.degree>0).map(n=>n.id));
-      const nodes2 = nodes.filter(n=>keep.has(n.id));
-      const keep2 = new Set(nodes2.map(n=>n.id));
-      const links2 = links.filter(l=>keep2.has(l.source) && keep2.has(l.target));
-
-      return { nodes:nodes2, links:links2 };
+      return {nodes, links};
     }
 
     function initGraph(){
       const host = document.getElementById('graph');
-      host.innerHTML = '';
-      const w = host.clientWidth || 800;
-      const h = host.clientHeight || 600;
+      host.innerHTML='';
+      const w=host.clientWidth||900, h=host.clientHeight||600;
 
-      svg = d3.select(host).append('svg')
-        .attr('width', w)
-        .attr('height', h);
-
-      // zoom/pan
-      const zoom = d3.zoom().scaleExtent([0.12, 4]).on('zoom', (ev)=>{
-        gRoot.attr('transform', ev.transform);
-      });
+      svg=d3.select(host).append('svg').attr('width',w).attr('height',h);
+      const zoom=d3.zoom().scaleExtent([0.12,4]).on('zoom', (ev)=>gRoot.attr('transform', ev.transform));
       svg.call(zoom);
-
-      gRoot = svg.append('g');
-
-      // layers
+      gRoot=svg.append('g');
       gRoot.append('g').attr('class','links');
       gRoot.append('g').attr('class','nodes');
       gRoot.append('g').attr('class','labels');
 
-      // resize observer
-      const ro = new ResizeObserver(()=>{
-        const ww = host.clientWidth || 800;
-        const hh = host.clientHeight || 600;
-        svg.attr('width', ww).attr('height', hh);
+      const ro=new ResizeObserver(()=>{
+        const ww=host.clientWidth||900, hh=host.clientHeight||600;
+        svg.attr('width',ww).attr('height',hh);
         if(sim){
           sim.force('center', d3.forceCenter(ww/2, hh/2));
-          sim.alpha(0.35).restart();
+          sim.alpha(0.25).restart();
         }
       });
       ro.observe(host);
 
-      // buttons
-      $('#btnZoomFit').addEventListener('click', ()=>zoomToFit());
+      $('#btnZoomFit').addEventListener('click', ()=>zoomToFit(zoom));
+    }
+
+    function zoomToFit(zoom, pad=0.15){
+      const host=document.getElementById('graph');
+      const w=host.clientWidth||900, h=host.clientHeight||600;
+      const xs=current.nodes.map(n=>n.x).filter(Number.isFinite);
+      const ys=current.nodes.map(n=>n.y).filter(Number.isFinite);
+      if(!xs.length||!ys.length) return;
+
+      const minX=Math.min(...xs), maxX=Math.max(...xs);
+      const minY=Math.min(...ys), maxY=Math.max(...ys);
+      const dx=maxX-minX, dy=maxY-minY;
+      const cx=(minX+maxX)/2, cy=(minY+maxY)/2;
+      const scale=0.92/Math.max(dx/w, dy/h);
+      const s=Math.max(0.12, Math.min(4, scale));
+      const tx=w/2 - s*cx;
+      const ty=h/2 - s*cy;
+      const tr=d3.zoomIdentity.translate(tx,ty).scale(s);
+      svg.transition().duration(450).call(zoom.transform, tr);
     }
 
     function renderGraph(model){
-      current.nodes = model.nodes;
-      current.links = model.links;
+      current.nodes=model.nodes;
+      current.links=model.links;
 
-      const host = document.getElementById('graph');
-      const w = host.clientWidth || 800;
-      const h = host.clientHeight || 600;
+      const linkG=gRoot.select('g.links');
+      const nodeG=gRoot.select('g.nodes');
+      const labelG=gRoot.select('g.labels');
 
-      const linkG = gRoot.select('g.links');
-      const nodeG = gRoot.select('g.nodes');
-      const labelG = gRoot.select('g.labels');
+      const links=linkG.selectAll('line').data(current.links);
+      links.exit().remove();
+      links.enter().append('line')
+        .attr('stroke','rgba(255,255,255,.14)')
+        .attr('stroke-width',1)
+        .attr('stroke-opacity',0.55);
 
-      // links
-      linkSel = linkG.selectAll('line').data(current.links, d=>`${d.source}->${d.target}`);
-      linkSel.exit().remove();
-      linkSel = linkSel.enter().append('line')
-        .attr('stroke', 'rgba(255,255,255,.14)')
-        .attr('stroke-width', 1)
-        .attr('stroke-opacity', 0.55)
-        .merge(linkSel);
-
-      // nodes
-      nodeSel = nodeG.selectAll('circle').data(current.nodes, d=>d.id);
-      nodeSel.exit().remove();
-      nodeSel = nodeSel.enter().append('circle')
+      const nodes=nodeG.selectAll('circle').data(current.nodes, d=>d.id);
+      nodes.exit().remove();
+      const nodesEnter = nodes.enter().append('circle')
         .attr('r', d=>nodeRadius(d))
-        .attr('fill', 'rgba(255,255,255,.06)')
-        .attr('stroke', d=>typeColor(d.type))
-        .attr('stroke-width', d=> d.type==='event' ? 1.2 : 1.0)
+        .attr('fill','rgba(255,255,255,.06)')
+        .attr('stroke','rgba(219,231,255,.75)')
+        .attr('stroke-width',1.1)
         .attr('cursor','pointer')
         .call(d3.drag()
-          .on('start', dragStarted)
-          .on('drag', dragged)
-          .on('end', dragEnded)
+          .on('start', (ev,d)=>{ if(!ev.active) sim.alphaTarget(0.25).restart(); d.fx=d.x; d.fy=d.y; })
+          .on('drag', (ev,d)=>{ d.fx=ev.x; d.fy=ev.y; })
+          .on('end', (ev,d)=>{ if(!ev.active) sim.alphaTarget(0); })
         )
-        .on('click', (_,d)=>selectNode(d))
-        .merge(nodeSel);
+        .on('click', (_,d)=>onNodeClick(d));
 
-      // labels (only for non-event nodes + a few top-degree event nodes)
-      const topEvents = current.nodes
-        .filter(n=>n.type==='event')
-        .sort((a,b)=>(b.degree||0)-(a.degree||0))
-        .slice(0, 18)
-        .map(n=>n.id);
-
+      // labels för icke-event (och några event)
+      const topEvents = current.nodes.filter(n=>n.type==='event').sort((a,b)=>(b.degree||0)-(a.degree||0)).slice(0,18).map(n=>n.id);
       const labelNodes = current.nodes.filter(n=> n.type!=='event' || topEvents.includes(n.id));
-      labelSel = labelG.selectAll('text').data(labelNodes, d=>d.id);
-      labelSel.exit().remove();
-      labelSel = labelSel.enter().append('text')
+      const labels=labelG.selectAll('text').data(labelNodes, d=>d.id);
+      labels.exit().remove();
+      labels.enter().append('text')
         .text(d=>d.label)
-        .attr('font-size', d=> d.type==='event' ? 10 : 11)
+        .attr('font-size', d=>d.type==='event'?10:11)
         .attr('fill','rgba(219,231,255,.75)')
-        .attr('pointer-events','none')
-        .merge(labelSel);
+        .attr('pointer-events','none');
 
       // simulation
+      const host=document.getElementById('graph');
+      const w=host.clientWidth||900, h=host.clientHeight||600;
       if(sim) sim.stop();
-
-      const forceLevel = Number($('#force').value);
-      const linkDist = 40 + (100-forceLevel) * 1.2;
-      const charge = -60 - forceLevel * 7;
-
-      sim = d3.forceSimulation(current.nodes)
-        .force('link', d3.forceLink(current.links).id(d=>d.id).distance(linkDist).strength(0.6))
-        .force('charge', d3.forceManyBody().strength(charge))
-        .force('center', d3.forceCenter(w/2, h/2))
+      sim=d3.forceSimulation(current.nodes)
+        .force('link', d3.forceLink(current.links).id(d=>d.id).distance(70).strength(0.6))
+        .force('charge', d3.forceManyBody().strength(-420))
+        .force('center', d3.forceCenter(w/2,h/2))
         .force('collide', d3.forceCollide().radius(d=>nodeRadius(d)+3).iterations(2))
-        .on('tick', ticked);
+        .on('tick', ()=>{
+          linkG.selectAll('line')
+            .attr('x1', d=>d.source.x).attr('y1', d=>d.source.y)
+            .attr('x2', d=>d.target.x).attr('y2', d=>d.target.y);
+          nodeG.selectAll('circle')
+            .attr('cx', d=>d.x).attr('cy', d=>d.y);
+          labelG.selectAll('text')
+            .attr('x', d=>d.x+10).attr('y', d=>d.y+4);
+        });
 
-      paused = false;
-      $('#btnPause').textContent = 'Pausa';
-
-      function ticked(){
-        linkSel
-          .attr('x1', d=>d.source.x)
-          .attr('y1', d=>d.source.y)
-          .attr('x2', d=>d.target.x)
-          .attr('y2', d=>d.target.y);
-
-        nodeSel
-          .attr('cx', d=>d.x)
-          .attr('cy', d=>d.y);
-
-        labelSel
-          .attr('x', d=>d.x + 10)
-          .attr('y', d=>d.y + 4);
-      }
+      $('#hudInfo').textContent = `${current.nodes.length} noder • ${current.links.length} länkar`;
     }
 
-    function dragStarted(event, d){
-      if(!event.active && sim && !paused) sim.alphaTarget(0.25).restart();
-      d.fx = d.x;
-      d.fy = d.y;
-    }
-    function dragged(event, d){
-      d.fx = event.x;
-      d.fy = event.y;
-    }
-    function dragEnded(event, d){
-      if(!event.active && sim && !paused) sim.alphaTarget(0);
-      // låt noden ligga kvar där den släppts (pin), dubbelklick av-pinnar
-    }
-
-    // double-click unpin
-    function enableUnpin(){
-      nodeSel.on('dblclick', (_,d)=>{
-        d.fx = null; d.fy = null;
-        toast('Nod släppt (unpin).');
-        if(sim && !paused) sim.alpha(0.35).restart();
-      });
-    }
-
-    function selectNode(n){
-      $('#detailEmpty').style.display='none';
-      $('#detail').style.display='block';
+    function onNodeClick(n){
       $('#pillSel').textContent = n.type;
-
-      if(n.type === 'event'){
-        const e = n.ev || {};
-        const dt = e._dt ? fmtDate(e._dt) : (e.date||'');
-        const cat = e._cat || '–';
-        const ctry = e._country || '–';
-        const src = e._source ? ` • ${escapeHtml(e._source)}` : '';
-        const url = e._url ? `<div style="margin-top:8px;"><a href="${encodeURI(e._url)}" target="_blank" rel="noopener">Öppna källa</a></div>` : '';
-
-        $('#detail').innerHTML = `
-          <div class="dtitle">${escapeHtml(e._title || 'Event')}</div>
-          <div class="dmeta">${escapeHtml(cat)} • ${escapeHtml(ctry)} • ${escapeHtml(dt)}${src}</div>
-          <div style="font-size:12px;line-height:1.45;color:rgba(219,231,255,.85)">${escapeHtml(e._summary || '')}</div>
-          ${url}
-        `;
+      if(n.type==='event'){
+        const e=n.ev;
+        $('#detail').innerHTML = `<b>${escapeHtml(e._title||'Event')}</b><br>
+          <span style="color:var(--muted)">${escapeHtml(e._cat||'–')} • ${escapeHtml(e._country||'–')} • ${escapeHtml(e.date||'')}</span><br>
+          <span>${escapeHtml((e._summary||'').slice(0,320))}${(e._summary||'').length>320?'…':''}</span><br>
+          ${e._url?`<a href="${encodeURI(e._url)}" target="_blank" rel="noopener">Öppna källa</a>`:''}`;
+        // scope = just det eventet
+        SCOPE = { type:'event', id:n.id, label:e._title||'Event', eventIdxSet: new Set([n.evIdx]) };
       } else {
-        // show top related events for this node
-        const id = n.id;
-        const related = current.links
-          .filter(l => (l.source.id ? l.source.id : l.source) === id || (l.target.id ? l.target.id : l.target) === id)
-          .map(l => (l.source.id ? l.source.id : l.source) === id ? (l.target.id ? l.target.id : l.target) : (l.source.id ? l.source.id : l.source))
-          .filter(x=> String(x).startsWith('ev:'))
-          .map(evId=>{
-            const evNode = current.nodes.find(nn=>nn.id===evId);
-            return evNode ? evNode.ev : null;
-          })
-          .filter(Boolean)
-          .slice(0, 18);
-
-        $('#detail').innerHTML = `
-          <div class="dtitle">${escapeHtml(n.label || n.name || '')}</div>
-          <div class="dmeta">${related.length} relaterade events (visar upp till 18)</div>
-          <div style="display:flex;flex-direction:column;gap:8px;">
-            ${related.map(e=>{
-              const dt = e._dt ? fmtDate(e._dt) : (e.date||'');
-              const url = e._url ? `<a href="${encodeURI(e._url)}" target="_blank" rel="noopener">Källa</a>` : '';
-              return `<div style="padding:10px;border:1px solid rgba(255,255,255,.07);border-radius:12px;background:rgba(255,255,255,.02)">
-                <div style="font-weight:700;font-size:12px;margin-bottom:4px">${escapeHtml(e._title||'Event')}</div>
-                <div style="font-size:11px;color:var(--muted);margin-bottom:6px">${escapeHtml(e._cat||'–')} • ${escapeHtml(e._country||'–')} • ${escapeHtml(dt)}</div>
-                <div style="font-size:12px;color:rgba(219,231,255,.85);line-height:1.4">${escapeHtml((e._summary||'').slice(0,220))}${(e._summary||'').length>220?'…':''}</div>
-                ${url ? `<div style="margin-top:6px">${url}</div>`:''}
-              </div>`;
-            }).join('')}
-          </div>
-        `;
+        // scope = alla events som är länkade till noden
+        const id=n.id;
+        const evIds = new Set(
+          current.links
+            .filter(l => (l.source.id||l.source)===id || (l.target.id||l.target)===id)
+            .map(l => ((l.source.id||l.source)===id ? (l.target.id||l.target) : (l.source.id||l.source)))
+            .filter(x=>String(x).startsWith('ev:'))
+        );
+        const idxSet = new Set();
+        for(const evId of evIds){
+          const m = String(evId).match(/^ev:(\d+)$/);
+          if(m) idxSet.add(Number(m[1]));
+        }
+        SCOPE = { type:n.type, id:n.id, label:n.label||n.id, eventIdxSet: idxSet };
+        $('#detail').innerHTML = `<b>${escapeHtml(n.label||n.id)}</b><br><span style="color:var(--muted)">${idxSet.size} relaterade events</span>`;
       }
+      $('#pillScope').textContent = `Urval: ${SCOPE.label}`;
+      refreshIntentioner(); // samspel direkt
     }
 
     function escapeHtml(s){
-      return (s||'').toString()
-        .replace(/&/g,'&amp;')
-        .replace(/</g,'&lt;')
-        .replace(/>/g,'&gt;')
-        .replace(/"/g,'&quot;')
-        .replace(/'/g,'&#039;');
+      return (s||'').toString().replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;');
     }
 
-    function zoomToFit(pad=0.15){
-      if(!svg || !current.nodes.length) return;
-      const host = document.getElementById('graph');
-      const w = host.clientWidth || 800;
-      const h = host.clientHeight || 600;
+    // -----------------------------
+    // 8) Intentioner-beräkning (vektorer)
+    // -----------------------------
+    const DIMS = [
+      {key:'intention', label:'Intentioner'},
+      {key:'facilitering', label:'Facilitering'},
+      {key:'resurser', label:'Resurser'},
+      {key:'tillfalle', label:'Tillfälle'}
+    ];
 
-      const xs = current.nodes.map(n=>n.x).filter(Number.isFinite);
-      const ys = current.nodes.map(n=>n.y).filter(Number.isFinite);
-      if(!xs.length || !ys.length) return;
+    // Justera mappingen så den matchar din logik
+    const CAT_TO_DIM = {
+      HYBRID:'intention', POLICY:'intention', TERROR:'intention',
+      INTEL:'facilitering', LEGAL:'facilitering',
+      MIL:'resurser', MAR:'resurser', INFRA:'resurser', NUCLEAR:'resurser',
+      DRONE:'tillfalle', GPS:'tillfalle'
+    };
 
-      const minX = Math.min(...xs), maxX=Math.max(...xs);
-      const minY = Math.min(...ys), maxY=Math.max(...ys);
-      const dx = maxX-minX, dy = maxY-minY;
+    const LIKELIHOOD_W = {
+      bekraftat: 1.00,
+      sannolikt: 0.80,
+      troligt:   0.60,
+      mojligt:   0.30,
+      tveksamt:  0.05
+    };
 
-      const cx = (minX+maxX)/2;
-      const cy = (minY+maxY)/2;
-
-      const scale = 0.92 / Math.max(dx / w, dy / h);
-      const s = Math.max(0.12, Math.min(4, scale));
-      const tx = w/2 - s*cx;
-      const ty = h/2 - s*cy;
-
-      const tr = d3.zoomIdentity.translate(tx,ty).scale(s);
-      svg.transition().duration(450).call(d3.zoom().scaleExtent([0.12,4]).on('zoom', (ev)=>gRoot.attr('transform', ev.transform)).transform, tr);
+    function weightFor(e){
+      // om du inte har likelihood i events → default 1
+      const k = (e._likelihood||'').replace('möjligt','mojligt').replace('tveksamt','tveksamt');
+      return LIKELIHOOD_W[k] ?? 1.0;
     }
 
-    function centerView(){
-      if(!svg) return;
-      const host = document.getElementById('graph');
-      const w = host.clientWidth || 800;
-      const h = host.clientHeight || 600;
-      const tr = d3.zoomIdentity.translate(0,0).scale(1);
-      svg.transition().duration(350).call(d3.zoom().scaleExtent([0.12,4]).on('zoom', (ev)=>gRoot.attr('transform', ev.transform)).transform, tr);
-      if(sim && !paused){
-        sim.force('center', d3.forceCenter(w/2, h/2));
-        sim.alpha(0.4).restart();
+    function computeVectors(events){
+      const scores = Object.fromEntries(DIMS.map(d=>[d.key,0]));
+      const contrib = []; // per event
+      for(const e of events){
+        const dim = CAT_TO_DIM[e._cat] || 'intention';
+        const w = weightFor(e);
+        const base = Math.max(1, Math.min(5, e._risk || 3));
+        const val = base * w;
+        scores[dim] += val;
+        contrib.push({e, dim, val});
+      }
+      // normalisera till 0–100
+      const max = Math.max(1, ...Object.values(scores));
+      const pct = {};
+      for(const d of DIMS) pct[d.key] = Math.round((scores[d.key]/max)*100);
+      const total = Object.values(scores).reduce((a,b)=>a+b,0);
+
+      contrib.sort((a,b)=>b.val-a.val);
+      return {scores, pct, total, contrib};
+    }
+
+    function renderBars(pct){
+      const host = $('#bars');
+      host.innerHTML='';
+      for(const d of DIMS){
+        const v = pct[d.key] ?? 0;
+        const el = document.createElement('div');
+        el.className='bar';
+        el.innerHTML = `
+          <div class="top">
+            <div class="name">${d.label}</div>
+            <div class="val">${v}/100</div>
+          </div>
+          <div class="track"><div class="fill" style="width:${v}%"></div></div>
+        `;
+        host.appendChild(el);
       }
     }
 
-    // ---------- update cycle ----------
-    function refresh(){
-      updateSliderLabels();
+    function renderRadar(pct){
+      const svg = d3.select('#radar');
+      svg.selectAll('*').remove();
 
-      const list = applyFilters();
-      const span = list.map(e=>e._dt).filter(Boolean).sort((a,b)=>a-b);
-      const spanTxt = span.length ? `${fmtDate(span[0])} → ${fmtDate(span[span.length-1])}` : '–';
+      const W=360,H=300, cx=W/2, cy=150, r=110;
+      const axes = DIMS.length;
+      const angle = (i)=> (Math.PI*2*i/axes) - Math.PI/2;
 
-      // build graph model
-      const model = buildGraph(list);
-      current.events = list;
+      // ringar
+      for(const rr of [0.25,0.5,0.75,1]){
+        svg.append('circle')
+          .attr('cx',cx).attr('cy',cy).attr('r', r*rr)
+          .attr('fill','none').attr('stroke','rgba(255,255,255,.10)');
+      }
 
-      // UI counts
-      $('#kEvents').textContent = String(list.length);
-      $('#kLinks').textContent = String(model.links.length);
-      $('#kNodes').textContent = String(model.nodes.length);
-      $('#kSpan').textContent = spanTxt;
+      // axlar + labels
+      DIMS.forEach((d,i)=>{
+        const a = angle(i);
+        const x = cx + Math.cos(a)*r;
+        const y = cy + Math.sin(a)*r;
+        svg.append('line')
+          .attr('x1',cx).attr('y1',cy).attr('x2',x).attr('y2',y)
+          .attr('stroke','rgba(255,255,255,.12)');
+        svg.append('text')
+          .attr('x', cx + Math.cos(a)*(r+18))
+          .attr('y', cy + Math.sin(a)*(r+18))
+          .attr('fill','rgba(219,231,255,.78)')
+          .attr('font-size', 11)
+          .attr('text-anchor', Math.cos(a)>0.2?'start':(Math.cos(a)<-0.2?'end':'middle'))
+          .attr('dominant-baseline','middle')
+          .text(d.label);
+      });
 
-      $('#pillCount').textContent = `${list.length} events`;
-      $('#hudInfo').textContent = `${model.nodes.length} noder • ${model.links.length} länkar`;
-      $('#subTitle').textContent = DATA.length ? `${DATA.length} events totalt` : 'Inga events';
+      // polygon
+      const pts = DIMS.map((d,i)=>{
+        const v = (pct[d.key]??0)/100;
+        const a = angle(i);
+        return [cx + Math.cos(a)*r*v, cy + Math.sin(a)*r*v];
+      });
 
-      // render
-      if(!svg) initGraph();
-      renderGraph(model);
-      enableUnpin();
+      svg.append('polygon')
+        .attr('points', pts.map(p=>p.join(',')).join(' '))
+        .attr('fill','rgba(219,231,255,.18)')
+        .attr('stroke','rgba(219,231,255,.55)')
+        .attr('stroke-width',1.2);
 
-      // zoom fit (mjuk)
-      setTimeout(()=>zoomToFit(), 60);
+      // points
+      pts.forEach(p=>{
+        svg.append('circle').attr('cx',p[0]).attr('cy',p[1]).attr('r',3.2)
+          .attr('fill','rgba(219,231,255,.7)');
+      });
     }
 
-    // ---------- events / listeners ----------
+    function renderTop(contrib){
+      const host=$('#topList');
+      host.innerHTML='';
+      contrib.slice(0,15).forEach(c=>{
+        const e=c.e;
+        const el=document.createElement('div');
+        el.className='item';
+        el.innerHTML = `
+          <div class="it">${escapeHtml(e._title||'Event')}</div>
+          <div class="im">${escapeHtml(e._cat||'–')} • ${escapeHtml(e._country||'–')} • dim: <b>${escapeHtml(c.dim)}</b> • +${c.val.toFixed(2)}</div>
+          ${e._url?`<a href="${encodeURI(e._url)}" target="_blank" rel="noopener">Källa</a>`:''}
+        `;
+        host.appendChild(el);
+      });
+    }
+
+    function refreshIntentioner(){
+      // utgång: filter-listan
+      const base = current.events || [];
+      // scope ur den listan (index i graph-building list)
+      let scoped = base;
+      if(SCOPE.eventIdxSet && SCOPE.eventIdxSet.size){
+        scoped = base.filter((_,idx)=>SCOPE.eventIdxSet.has(idx));
+      }
+
+      const res = computeVectors(scoped);
+      $('#pillIntent').textContent = `Urval: ${SCOPE.label} • ${scoped.length} events`;
+      $('#kEvents').textContent = String(scoped.length);
+      $('#kScore').textContent = res.total.toFixed(1);
+
+      renderBars(res.pct);
+      renderRadar(res.pct);
+      renderTop(res.contrib);
+    }
+
+    // -----------------------------
+    // 9) Refresh (graf + intentioner)
+    // -----------------------------
+    function refresh(){
+      const list = applyFilters();
+      current.events = list;
+
+      $('#subTitle').textContent = `${DATA.length} events totalt`;
+      $('#pillCount').textContent = `${list.length} i filter`;
+
+      // Om du har ett scope, behåll det – men om urvalet blivit tomt: rensa scope
+      if(SCOPE.eventIdxSet && SCOPE.eventIdxSet.size){
+        const still = new Set();
+        // scope-index avser index i graph-listan – om listan krympt kan vissa index saknas
+        for(const i of SCOPE.eventIdxSet) if(i >= 0 && i < list.length) still.add(i);
+        SCOPE.eventIdxSet = still;
+        if(!still.size) setScopeAll();
+      }
+
+      if(!svg) initGraph();
+      const model = buildGraph(list);
+      renderGraph(model);
+
+      refreshIntentioner();
+    }
+
+    // listeners
     ['input','change'].forEach(ev=>{
-      $('#q').addEventListener(ev, ()=>refresh());
-      $('#dFrom').addEventListener(ev, ()=>refresh());
-      $('#dTo').addEventListener(ev, ()=>refresh());
-      $('#cat').addEventListener(ev, ()=>refresh());
-      $('#country').addEventListener(ev, ()=>refresh());
-      $('#limit').addEventListener(ev, ()=>refresh());
-      $('#kwMin').addEventListener(ev, ()=>refresh());
-      $('#force').addEventListener(ev, ()=>refresh());
+      $('#q').addEventListener(ev, refresh);
+      $('#dFrom').addEventListener(ev, refresh);
+      $('#dTo').addEventListener(ev, refresh);
+      $('#cat').addEventListener(ev, refresh);
+      $('#country').addEventListener(ev, refresh);
+      $('#limit').addEventListener(ev, refresh);
+      $('#kwMin').addEventListener(ev, refresh);
     });
 
     $('#btnReset').addEventListener('click', ()=>{
       $('#q').value='';
       $('#cat').value='Alla';
       $('#country').value='Alla';
-      if(minDt) $('#dFrom').value = fmtDate(minDt);
-      if(maxDt) $('#dTo').value = fmtDate(maxDt);
-      $('#limit').value = String(Math.min(600, Math.max(200, DATA.length)));
+      if(minDt) $('#dFrom').value=fmtDate(minDt);
+      if(maxDt) $('#dTo').value=fmtDate(maxDt);
+      $('#limit').value=String(Math.min(600, Math.max(200, DATA.length)));
       $('#kwMin').value='3';
-      $('#force').value='55';
-      $('#detail').style.display='none';
-      $('#detailEmpty').style.display='block';
-      $('#pillSel').textContent='–';
+      setScopeAll();
       refresh();
-      toast('Återställt.');
     });
 
-    $('#btnCenter').addEventListener('click', ()=>centerView());
-
-    $('#btnPause').addEventListener('click', ()=>{
-      if(!sim) return;
-      paused = !paused;
-      if(paused){
-        sim.stop();
-        $('#btnPause').textContent = 'Fortsätt';
-        toast('Pausad layout.');
-      }else{
-        sim.alpha(0.35).restart();
-        $('#btnPause').textContent = 'Pausa';
-        toast('Layout igång.');
-      }
-    });
-
-    // Fullscreen (graf)
+    // UI-helskärm graf
     function setFullscreen(on){
       document.documentElement.classList.toggle('fullscreen', on);
       $('#btnFullscreen').textContent = on ? 'Avsluta helskärm' : 'Helskärm (graf)';
-      // trigga re-render layout efter storleksbyte
-      setTimeout(()=>refresh(), 80);
+      setTab('graph');
+      setTimeout(refresh, 80);
     }
-
     $('#btnFullscreen').addEventListener('click', ()=>{
       const on = !document.documentElement.classList.contains('fullscreen');
       setFullscreen(on);
     });
-
-    // ESC lämnar "UI-helskärm"
     window.addEventListener('keydown', (e)=>{
-      if(e.key === 'Escape' && document.documentElement.classList.contains('fullscreen')){
-        setFullscreen(false);
-      }
+      if(e.key==='Escape' && document.documentElement.classList.contains('fullscreen')) setFullscreen(false);
     });
 
-    // Export filtrerad JSON
-    $('#btnExport').addEventListener('click', ()=>{
-      const out = current.events.map(e=>{
-        const copy = {...e};
-        // städa interna fält
-        delete copy._dt; delete copy._cat; delete copy._country; delete copy._title;
-        delete copy._summary; delete copy._source; delete copy._url;
-        return copy;
-      });
-      const blob = new Blob([JSON.stringify(out, null, 2)], {type:'application/json'});
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(blob);
-      a.download = 'events_filtered.json';
-      a.click();
-      URL.revokeObjectURL(a.href);
-      toast('Exporterade filtrerad JSON.');
-    });
-
-    // ---------- start ----------
-    // 1) Gör det tydligt om DATA är tomt
-    if(!DATA.length){
-      $('#subTitle').textContent = '0 events';
-      $('#pillCount').textContent = '0 events';
-      toast('<b>Inga events hittades.</b> Kontrollera att <code>events.js</code> laddas och innehåller en array.');
-    } else {
-      refresh();
-    }
+    // init
+    setTab('graph');
+    setScopeAll();
+    refresh();
   </script>
 </body>
 </html>
