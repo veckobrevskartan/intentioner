@@ -22,6 +22,13 @@ const SCENARIO_FILTERS = {
   worst:  new Set(["bekraftat","sannolikt","troligt","mojligt","tveksamt"]),
 };
 
+// FIX: scenario labels (tidigare användes byKey felaktigt på ett object)
+const SCENARIO_LABEL = {
+  best: "Bästa",
+  likely: "Troligast",
+  worst: "Värsta",
+};
+
 // --- State ---
 let state = {
   data: null,
@@ -51,8 +58,6 @@ function scenarioAllowed(phen){
 }
 
 function phenPercent(phen){
-  // 0–5 till 0–100 med faktor 20, viktad med sannolikhetsvikt.
-  // risk(1–5) * weight * 20
   const w = byKey(LIKELIHOOD, phen.likelihood)?.w ?? 0;
   return (phen.risk ?? 1) * w * 20;
 }
@@ -88,8 +93,6 @@ function fmtPct(x){
 }
 
 function updateOverview(){
-  const prevScenario = state.scenario;
-  // totals for each scenario, always same min-likelihood filtering.
   const savedScenario = state.scenario;
 
   state.scenario = "best";
@@ -153,7 +156,6 @@ function selectPhen(id){
   document.getElementById("edRiskVal").textContent = String(p.risk || 1);
   document.getElementById("edNote").value = p.note || "";
 
-  // highlight node in graph
   highlightNode(id);
 }
 
@@ -175,7 +177,6 @@ function deleteSelected(){
   const id = state.selectedPhen;
   if(!id) return;
   state.data.phenomena = state.data.phenomena.filter(p => p.id !== id);
-  // also remove links
   state.data.links = (state.data.links || []).filter(l => l.source !== id && l.target !== id);
 
   state.selectedPhen = null;
@@ -183,7 +184,7 @@ function deleteSelected(){
 
   updateOverview();
   renderPhenList();
-  initGraph(); // rebuild for simplicity
+  initGraph();
 }
 
 function addPhen(){
@@ -259,10 +260,8 @@ function renderRadar(){
   const cx = w/2, cy = 150;
   const r = 110;
 
-  const stats = totalStats();
   const axes = DIMENSIONS.map(d => ({...d, v: clamp100(dimStats(d.key).mean)}));
 
-  // grid circles
   const levels = [20,40,60,80,100];
   for(const lv of levels){
     svg.append("circle")
@@ -271,6 +270,7 @@ function renderRadar(){
       .attr("fill","none")
       .attr("stroke","rgba(38,50,74,.8)")
       .attr("stroke-dasharray","3,3");
+
     svg.append("text")
       .attr("x", cx + r*(lv/100) + 6)
       .attr("y", cy + 4)
@@ -279,7 +279,6 @@ function renderRadar(){
       .text(lv + "%");
   }
 
-  // axes
   const angle = (2*Math.PI) / axes.length;
   axes.forEach((a,i)=>{
     const ang = -Math.PI/2 + i*angle;
@@ -302,7 +301,6 @@ function renderRadar(){
       .text(a.label);
   });
 
-  // polygon
   const pts = axes.map((a,i)=>{
     const ang = -Math.PI/2 + i*angle;
     const rr = r*(a.v/100);
@@ -320,6 +318,7 @@ function renderRadar(){
       .attr("cx", p[0]).attr("cy", p[1])
       .attr("r", 4)
       .attr("fill", "rgba(122,162,255,.95)");
+
     svg.append("text")
       .attr("x", p[0]).attr("y", p[1]-8)
       .attr("text-anchor","middle")
@@ -328,12 +327,12 @@ function renderRadar(){
       .text(Math.round(axes[i].v) + "%");
   });
 
-  // caption
+  // FIX: använd SCENARIO_LABEL istället för byKey på object
   svg.append("text")
     .attr("x", 12).attr("y", 300)
     .attr("fill","rgba(138,151,178,.95)")
     .attr("font-size","11")
-    .text(`Scenario: ${byKey({best:{label:"Bästa"},likely:{label:"Troligast"},worst:{label:"Värsta"}}, state.scenario)?.label ?? state.scenario}`);
+    .text(`Scenario: ${SCENARIO_LABEL[state.scenario] || state.scenario}`);
 }
 
 // --- Graph (D3 force) ---
@@ -342,7 +341,6 @@ let svgG = null;
 let zoom = null;
 
 function buildGraphData(){
-  // dimension nodes
   const dimNodes = DIMENSIONS.map(d => ({
     id: d.key,
     type: "dimension",
@@ -363,7 +361,6 @@ function buildGraphData(){
 
   const nodes = [...dimNodes, ...phenNodes];
 
-  // links: dimension -> phenomenon, plus optional custom links phenomenon->phenomenon
   const links = [];
   for(const p of state.data.phenomena){
     links.push({ source: p.dimension, target: p.id, kind: "belongs" });
@@ -393,14 +390,6 @@ function nodeOpacity(n){
   if(!inDim) return 0.25;
   const allowed = scenarioAllowed({likelihood:n.likelihood}) && likelihoodAllowed({likelihood:n.likelihood});
   return allowed ? 1 : 0.35;
-}
-
-function linkOpacity(l){
-  if(l.kind === "custom") return 0.85;
-  // belongs links
-  const s = typeof l.target === "object" ? l.target : null;
-  if(!s) return 0.55;
-  return 0.55;
 }
 
 function initGraph(){
@@ -453,7 +442,6 @@ function initGraph(){
     .attr("font-size", 11)
     .text(d => d.label);
 
-  // interactions
   node.on("click", (event, d) => {
     event.stopPropagation();
     if(d.type === "phenomenon"){
@@ -463,7 +451,6 @@ function initGraph(){
         selectPhen(d.id);
       }
     } else {
-      // dimension node
       state.dim = d.id;
       document.getElementById("selDimension").value = state.dim;
       renderPhenList();
@@ -502,7 +489,6 @@ function initGraph(){
     node.attr("transform", d => `translate(${d.x},${d.y})`);
   }
 
-  // initial zoom-to-fit
   requestAnimationFrame(()=>zoomToFit(svg, g, width, height));
   updateGraph();
 }
@@ -519,7 +505,6 @@ function zoomToFit(svg, g, width, height){
 function updateGraph(){
   if(!svgG) return;
 
-  // update nodes quickly by re-binding styles
   svgG.selectAll("g.node circle")
     .attr("stroke", d => {
       const base = nodeStroke(d);
@@ -552,7 +537,6 @@ function highlightNode(id){
   updateGraph();
 }
 
-// create / remove custom link by two clicks (Shift mode)
 function handleLinkClick(id){
   if(!state.pendingLink){
     state.pendingLink = id;
@@ -568,7 +552,6 @@ function handleLinkClick(id){
     return;
   }
 
-  // toggle
   const links = state.data.links || [];
   const idx = links.findIndex(l => (l.source === a && l.target === b) || (l.source === b && l.target === a));
   if(idx >= 0){
@@ -588,7 +571,6 @@ async function boot(){
   validateData(data);
   state.data = data;
 
-  // UI wiring
   rebuildDimensionSelect();
 
   document.getElementById("selDimension").addEventListener("change", (e)=>{
@@ -660,7 +642,6 @@ async function boot(){
   renderPhenList();
   initGraph();
 
-  // resize handling
   window.addEventListener("resize", ()=>{
     initGraph();
   });
