@@ -3,161 +3,238 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Svensk OSINT – Events → Intentioner (interaktiv)</title>
-  <link rel="stylesheet" href="style.css?v=2" />
+  <title>Intentioner – länkdiagram</title>
+
+  <!-- D3 (force graph) -->
   <script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
+
+  <style>
+    :root{
+      --bg:#0b0f14;
+      --panel:#0f1621;
+      --panel2:#101b29;
+      --txt:#dbe7ff;
+      --muted:#98a7c2;
+      --stroke:#1e2a3d;
+      --chip:#13243a;
+      --btn:#162944;
+      --btn2:#1a3357;
+      --danger:#4b1f28;
+      --ok:#173a2a;
+      --shadow: 0 10px 30px rgba(0,0,0,.35);
+      --radius: 14px;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      font-family: ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;
+      background: radial-gradient(1200px 800px at 40% 10%, #0e1623 0%, var(--bg) 60%);
+      color:var(--txt);
+    }
+    header{
+      position:sticky; top:0; z-index:50;
+      display:flex; align-items:center; justify-content:space-between;
+      padding:12px 14px;
+      background: rgba(10,14,20,.75);
+      backdrop-filter: blur(10px);
+      border-bottom:1px solid rgba(255,255,255,.06);
+    }
+    header .title{
+      display:flex; gap:10px; align-items:baseline;
+    }
+    header h1{
+      font-size:15px; margin:0; letter-spacing:.2px;
+    }
+    header .sub{
+      font-size:12px; color:var(--muted);
+    }
+    header .actions{
+      display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end;
+    }
+    .btn{
+      appearance:none; border:1px solid rgba(255,255,255,.09);
+      background: linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,.01));
+      color:var(--txt);
+      padding:8px 10px;
+      border-radius:12px;
+      font-size:12px;
+      cursor:pointer;
+      transition: transform .05s ease, background .15s ease, border-color .15s ease;
+      user-select:none;
+    }
+    .btn:hover{ background: rgba(255,255,255,.04); border-color: rgba(255,255,255,.14); }
+    .btn:active{ transform: translateY(1px); }
+    .btn.secondary{ background: rgba(255,255,255,.02); }
+    .btn.danger{ background: rgba(255,255,255,.02); border-color: rgba(255,100,120,.25); }
+    .btn.ok{ background: rgba(255,255,255,.02); border-color: rgba(110,255,170,.25); }
+
+    main{
+      display:grid;
+      grid-template-columns: 360px 1fr;
+      gap:12px;
+      padding:12px;
+      align-items:start;
+    }
+    @media (max-width: 980px){
+      main{ grid-template-columns: 1fr; }
+    }
+
+    .card{
+      background: linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,.015));
+      border:1px solid rgba(255,255,255,.07);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      overflow:hidden;
+    }
+    .card .head{
+      display:flex; align-items:center; justify-content:space-between;
+      padding:12px 12px 10px 12px;
+      border-bottom:1px solid rgba(255,255,255,.06);
+    }
+    .card .head h2{
+      margin:0; font-size:13px; letter-spacing:.2px;
+    }
+    .pill{
+      font-size:11px;
+      color:var(--muted);
+      background: rgba(255,255,255,.03);
+      border:1px solid rgba(255,255,255,.08);
+      padding:6px 10px;
+      border-radius:999px;
+      white-space:nowrap;
+    }
+    .card .body{ padding:12px; }
+
+    label{
+      display:block;
+      font-size:11px;
+      color:var(--muted);
+      margin:10px 0 6px;
+    }
+    input[type="text"], select, input[type="date"]{
+      width:100%;
+      border-radius:12px;
+      border:1px solid rgba(255,255,255,.08);
+      background: rgba(0,0,0,.25);
+      color:var(--txt);
+      padding:10px 10px;
+      outline:none;
+    }
+    input[type="range"]{ width:100%; }
+    .row{ display:grid; grid-template-columns: 1fr 1fr; gap:10px; }
+    .small{
+      font-size:12px;
+      color:var(--muted);
+      line-height:1.35;
+      margin-top:10px;
+    }
+    .kpis{
+      display:grid;
+      grid-template-columns: 1fr 1fr;
+      gap:10px;
+      margin-top:10px;
+    }
+    .kpi{
+      background: rgba(255,255,255,.02);
+      border:1px solid rgba(255,255,255,.06);
+      border-radius: 12px;
+      padding:10px;
+    }
+    .kpi .v{ font-size:16px; font-weight:700; margin-bottom:3px; }
+    .kpi .t{ font-size:11px; color:var(--muted); }
+
+    /* Graph area */
+    .graphWrap{
+      position:relative;
+      height: calc(100vh - 86px);
+      min-height: 520px;
+    }
+    #graph{
+      width:100%;
+      height:100%;
+      background: radial-gradient(900px 600px at 45% 10%, rgba(40,90,160,.14), rgba(0,0,0,0) 60%),
+                  radial-gradient(900px 600px at 65% 85%, rgba(120,70,180,.10), rgba(0,0,0,0) 60%);
+    }
+    .graphHud{
+      position:absolute; inset:12px 12px auto 12px;
+      display:flex; gap:8px; flex-wrap:wrap;
+      pointer-events:none;
+    }
+    .graphHud .pill{ pointer-events:auto; }
+    .graphHud .btn{ pointer-events:auto; }
+
+    /* Details */
+    .detail{
+      margin-top:12px;
+      max-height: 240px;
+      overflow:auto;
+      padding-right:6px;
+    }
+    .detail .dtitle{
+      font-size:13px; font-weight:700; margin:0 0 6px;
+    }
+    .detail .dmeta{
+      font-size:12px; color:var(--muted);
+      margin-bottom:8px;
+    }
+    .detail a{ color:#b8d4ff; text-decoration:none; }
+    .detail a:hover{ text-decoration:underline; }
+
+    /* Fullscreen helper */
+    .fullscreen .graphWrap{
+      position:fixed;
+      inset:0;
+      z-index:9999;
+      height:100vh !important;
+      border-radius:0;
+      padding:0;
+    }
+    .fullscreen main{ display:block; padding:0; }
+    .fullscreen header{ display:none; }
+    .fullscreen .leftCol{ display:none; }
+    .fullscreen .graphCard{
+      border-radius:0;
+      border:none;
+      box-shadow:none;
+    }
+
+    /* Node/link styles (svg) */
+    .legend{
+      display:flex; gap:10px; flex-wrap:wrap;
+      margin-top:10px;
+    }
+    .chip{
+      font-size:11px;
+      color:var(--muted);
+      background: rgba(255,255,255,.02);
+      border:1px solid rgba(255,255,255,.06);
+      padding:7px 10px;
+      border-radius:999px;
+    }
+
+    .toast{
+      position: fixed;
+      right: 14px; bottom: 14px;
+      background: rgba(12,18,26,.92);
+      border:1px solid rgba(255,255,255,.08);
+      border-radius: 12px;
+      padding: 10px 12px;
+      color: var(--txt);
+      font-size: 12px;
+      box-shadow: var(--shadow);
+      max-width: 520px;
+      display:none;
+      z-index: 10000;
+    }
+    .toast b{ color: #cfe2ff; }
+  </style>
 </head>
+
 <body>
-  <header class="topbar">
-    <div class="brand">
-      <div class="dot"></div>
-      <div>
-        <div class="title">EVENTS → INTENTIONER</div>
-        <div class="subtitle">Analys av EVENTS + kapacitetsmodell</div>
-      </div>
+  <header>
+    <div class="title">
+      <h1>Intentioner – länkdiagram</h1>
+      <div class="sub" id="subTitle">Laddar…</div>
     </div>
-
     <div class="actions">
-      <button id="btnFS" class="btn">Helskärm (graf)</button>
-      <button id="btnReset" class="btn">Återställ vy</button>
-      <button id="btnExportModel" class="btn">Exportera intentioner-JSON</button>
-      <button id="btnExportEvents" class="btn">Exportera EVENTS-JSON</button>
-      <label class="btn filebtn">
-        Importera EVENTS-JSON <input id="fileImportEvents" type="file" accept="application/json" />
-      </label>
-    </div>
-  </header>
-
-  <main class="layout">
-    <section class="left">
-      <div class="card">
-        <div class="cardhead">
-          <h2>Filter & styrning</h2>
-          <div class="pill">Live</div>
-        </div>
-
-        <div class="controls">
-          <div class="row">
-            <label>Datumintervall</label>
-            <div class="range2">
-              <input id="dateFrom" type="date" />
-              <input id="dateTo" type="date" />
-            </div>
-          </div>
-
-          <div class="row">
-            <label>Kategori</label>
-            <select id="selCat">
-              <option value="ALL" selected>Alla</option>
-            </select>
-          </div>
-
-          <div class="row">
-            <label>Land</label>
-            <select id="selCountry">
-              <option value="ALL" selected>Alla</option>
-            </select>
-          </div>
-
-          <div class="row">
-            <label>Minsta trolighetsnivå</label>
-            <select id="selMinLikelihood">
-              <option value="tveksamt">Tveksamt</option>
-              <option value="mojligt">Möjligt</option>
-              <option value="troligt">Troligt</option>
-              <option value="sannolikt">Sannolikt</option>
-              <option value="bekraftat" selected>Bekräftat</option>
-            </select>
-          </div>
-
-          <div class="row">
-            <label class="chk">
-              <input type="checkbox" id="chkClamp" checked />
-              Begränsa till 0–100%
-            </label>
-          </div>
-
-          <div class="row">
-            <label class="chk">
-              <input type="checkbox" id="chkKeywordNodes" checked />
-              Visa nyckelordsnoder i grafen
-            </label>
-          </div>
-
-          <div class="row">
-            <label>Nyckelordsfilter</label>
-            <input id="txtKW" placeholder="t.ex. cable, sabotage, drone..." />
-          </div>
-        </div>
-      </div>
-
-      <div class="card">
-        <div class="cardhead">
-          <h2>Kapacitetsmodell</h2>
-          <div class="pill">Viktad</div>
-        </div>
-
-        <div class="grid2">
-          <div class="mini"><div class="k">Total kapacitet</div><div class="v" id="capTotal">–</div></div>
-          <div class="mini"><div class="k">Events i urval</div><div class="v" id="nEvents">–</div></div>
-          <div class="mini"><div class="k">Kategorier i urval</div><div class="v" id="nCats">–</div></div>
-          <div class="mini"><div class="k">Länder i urval</div><div class="v" id="nCountries">–</div></div>
-        </div>
-
-        <div class="subgrid">
-          <div class="box">
-            <div class="boxt">Dimensioner (0–100)</div>
-            <div id="dimBars"></div>
-          </div>
-          <div class="box">
-            <div class="boxt">Radar</div>
-            <svg id="radar" viewBox="0 0 360 320"></svg>
-          </div>
-        </div>
-      </div>
-
-      <div class="card">
-        <div class="cardhead">
-          <h2>Tidslinje</h2>
-          <div class="pill">Histogram</div>
-        </div>
-        <svg id="timeline" viewBox="0 0 720 180"></svg>
-      </div>
-
-      <div class="card">
-        <div class="cardhead">
-          <h2>Urval</h2>
-          <div class="pill">Lista</div>
-        </div>
-        <div class="row inline">
-          <input id="txtSearch" placeholder="Sök title/summary/url..." />
-          <button id="btnClear" class="btn small">Rensa</button>
-        </div>
-        <div id="eventList" class="list"></div>
-      </div>
-    </section>
-
-    <section class="right">
-      <div id="graphCard" class="card canvas">
-        <div class="cardhead">
-          <h2>Länkdiagram</h2>
-          <div class="pill">Kategori ↔ Land ↔ Nyckelord</div>
-        </div>
-        <div id="graph"></div>
-        <div class="smallmuted">Dra noder. Zooma med hjul.</div>
-      </div>
-
-      <div class="card">
-        <div class="cardhead">
-          <h2>Detalj</h2>
-          <div class="pill" id="detailPill">–</div>
-        </div>
-        <div id="detail" class="detail"></div>
-      </div>
-    </section>
-  </main>
-
-  <script src="events.v2.js?v=2"></script>
-  <script src="app.v2.js?v=2"></script>
-</body>
-</html>
+      <button class="btn secondary" id="btnReset">Åte
