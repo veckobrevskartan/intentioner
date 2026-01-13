@@ -160,7 +160,7 @@
 
   // ---- modes/sliders
   let MODE = "auto"; // auto|manual|mix
-  let manual = {Intentioner:0, Facilitering:0, Resurser:0, "Tillfälle":0}; // in mix = offset sliders 0..100 (50 = 0)
+  let manual = {Intentioner:0, Facilitering:0, Resurser:0, "Tillfälle":0};
 
   function setMode(m){
     MODE = m;
@@ -169,15 +169,14 @@
     $("#modeMix").classList.toggle("active", MODE==="mix");
 
     const lock = MODE === "auto";
-    ["sInt","sFac","sRes","sTil"].forEach(id => { const s=$( "#"+id ); if(s) s.disabled = lock; });
+    ["sInt","sFac","sRes","sTil"].forEach(id => { const s=$("#"+id); if(s) s.disabled = lock; });
 
-    // i mix: default 50/50/50/50 om första gången
     if(MODE==="mix"){
       if($("#sInt").value === "0" && $("#sFac").value === "0" && $("#sRes").value === "0" && $("#sTil").value === "0"){
         $("#sInt").value = "50"; $("#sFac").value="50"; $("#sRes").value="50"; $("#sTil").value="50";
       }
     }
-    renderIntent(); // refresh
+    renderIntent();
   }
 
   function readManual(){
@@ -201,7 +200,6 @@
   function clamp(x,a,b){ return Math.max(a, Math.min(b,x)); }
 
   function mixed(autoPct){
-    // slider 0..100 => offset -50..+50
     const off = {
       Intentioner: manual.Intentioner - 50,
       Facilitering: manual.Facilitering - 50,
@@ -294,7 +292,6 @@
 
     let valsForRadar;
     if(MODE==="auto"){
-      // visa auto i sliders + radar
       $("#sInt").value = String(auto.pct.Intentioner);
       $("#sFac").value = String(auto.pct.Facilitering);
       $("#sRes").value = String(auto.pct.Resurser);
@@ -316,9 +313,8 @@
       const v = {...manual};
       setSliderUI(v);
       valsForRadar = v;
-    } else { // mix
+    } else {
       readManual();
-      // UI visar offsets (0..100) i siffror/fills, radar visar mixed
       setSliderUI(manual);
       valsForRadar = mixed(auto.pct);
     }
@@ -332,11 +328,15 @@
 
   // ---- D3 graph
   let svg, gRoot, sim, zoom;
+  let currentModel = null;
+
   function ensureGraph(){
     const host = $("#graph");
     host.innerHTML = "";
-    const w = host.clientWidth || 900;
-    const h = host.clientHeight || 600;
+
+    const r = host.getBoundingClientRect();
+    const w = Math.max(320, Math.floor(r.width || 900));
+    const h = Math.max(240, Math.floor(r.height || 600));
 
     svg = d3.select(host).append("svg").attr("width", w).attr("height", h);
     gRoot = svg.append("g");
@@ -346,22 +346,37 @@
     zoom = d3.zoom().scaleExtent([0.2, 4]).on("zoom", (ev)=> gRoot.attr("transform", ev.transform));
     svg.call(zoom);
 
-    // debounce ResizeObserver (minskar “loop completed…”)
+    // debounce ResizeObserver
     let raf = 0;
     new ResizeObserver(()=> {
       if(raf) cancelAnimationFrame(raf);
       raf = requestAnimationFrame(()=>{
-        const ww = host.clientWidth || 900;
-        const hh = host.clientHeight || 600;
-        svg.attr("width", ww).attr("height", hh);
-        if(sim){
-          sim.force("center", d3.forceCenter(ww/2, hh/2));
-          sim.alpha(0.12).restart();
-        }
+        resizeGraphNow(false);
       });
     }).observe(host);
 
-    on($("#btnZoomFit"), "click", ()=> svg.transition().duration(250).call(zoom.transform, d3.zoomIdentity));
+    on($("#btnZoomFit"), "click", ()=> zoomReset());
+  }
+
+  function resizeGraphNow(resetZoom){
+    if(!svg) return;
+    const host = $("#graph");
+    const r = host.getBoundingClientRect();
+    const w = Math.max(320, Math.floor(r.width || 900));
+    const h = Math.max(240, Math.floor(r.height || 600));
+
+    svg.attr("width", w).attr("height", h);
+
+    if(sim){
+      sim.force("center", d3.forceCenter(w/2, h/2));
+      sim.alpha(0.12).restart();
+    }
+    if(resetZoom) zoomReset();
+  }
+
+  function zoomReset(){
+    if(!svg || !zoom) return;
+    svg.transition().duration(180).call(zoom.transform, d3.zoomIdentity);
   }
 
   function buildGraph(events){
@@ -426,9 +441,12 @@
   }
 
   function renderGraph(model){
+    currentModel = model;
+
     const host = $("#graph");
-    const w = host.clientWidth || 900;
-    const h = host.clientHeight || 600;
+    const r = host.getBoundingClientRect();
+    const w = Math.max(320, Math.floor(r.width || 900));
+    const h = Math.max(240, Math.floor(r.height || 600));
 
     const linkSel = gRoot.select("g.links").selectAll("line").data(model.links);
     linkSel.exit().remove();
@@ -475,6 +493,8 @@
     if(!svg) ensureGraph();
     const model = buildGraph(filtered);
     renderGraph(model);
+    // säkerställ att svg storlek alltid matchar host (särskilt efter layoutändringar)
+    resizeGraphNow(false);
   }
 
   // ---- tabs + fullscreen
@@ -496,7 +516,6 @@
       if(!document.fullscreenElement) await wrap.requestFullscreen();
       else await document.exitFullscreen();
     }catch(e){}
-    setTimeout(()=>refreshGraph(), 120);
   }
 
   async function fullscreenAll(){
@@ -505,9 +524,16 @@
       if(!document.fullscreenElement) await shell.requestFullscreen();
       else await document.exitFullscreen();
     }catch(e){}
+  }
+
+  // ✅ när fullscreen ändras: tvinga resize + zoom reset (så inget klipps)
+  function onFullscreenChanged(){
+    // ge browsern en tick att layouta om fullscreen-storlekar
     setTimeout(()=>{
-      refreshGraph();
-      renderIntent();
+      // Vi vill alltid uppdatera svg-mått (grafen ligger kvar i DOM även om du är på Intentioner)
+      if(svg) resizeGraphNow(true);
+      // och om du står på graf-fliken, rendera om för säkerhets skull
+      if($("#viewGraph").classList.contains("active")) refreshGraph();
     }, 140);
   }
 
@@ -518,6 +544,8 @@
 
     on($("#btnFullscreenGraph"), "click", fullscreenGraph);
     on($("#btnFullscreenAll"), "click", fullscreenAll);
+
+    document.addEventListener("fullscreenchange", onFullscreenChanged);
 
     on($("#btnClearScope"), "click", ()=>{ setScopeAll(); renderIntent(); });
 
