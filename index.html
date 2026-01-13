@@ -3,27 +3,32 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Intentioner – graf + vektorer (EVENTS)</title>
+  <title>Graf + Intentioner (EVENTS)</title>
+
+  <!-- D3 -->
   <script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
 
   <style>
     :root{
-      --bg:#0b0f14; --txt:#dbe7ff; --muted:#98a7c2;
+      --bg:#0b0f14; --txt:#dbe7ff; --muted:#9fb0cc;
       --panel:rgba(255,255,255,.03); --stroke:rgba(255,255,255,.08);
       --shadow: 0 10px 30px rgba(0,0,0,.35); --r:14px;
     }
+    html, body { height:100%; }
     *{box-sizing:border-box}
     body{
       margin:0;
       font-family: ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;
       background: radial-gradient(1200px 800px at 40% 10%, #0e1623 0%, var(--bg) 60%);
       color:var(--txt);
+      font-size:14px; /* mindre bas */
     }
+
     header{
       position:sticky; top:0; z-index:50;
       display:flex; align-items:center; justify-content:space-between;
       padding:12px 14px;
-      background: rgba(10,14,20,.75);
+      background: rgba(10,14,20,.78);
       backdrop-filter: blur(10px);
       border-bottom:1px solid rgba(255,255,255,.06);
       gap:10px;
@@ -31,6 +36,7 @@
     .title{display:flex; gap:10px; align-items:baseline; flex-wrap:wrap}
     h1{font-size:15px; margin:0}
     .sub{font-size:12px; color:var(--muted)}
+
     .tabs{display:flex; gap:8px; align-items:center; flex-wrap:wrap}
     .tab{
       border:1px solid rgba(255,255,255,.09);
@@ -38,11 +44,18 @@
       color:var(--txt);
       padding:8px 10px;
       border-radius:999px;
-      font-size:12px;
+      font-size:11px;
       cursor:pointer;
       user-select:none;
     }
     .tab.active{background: rgba(255,255,255,.06); border-color: rgba(255,255,255,.14)}
+    .pill{
+      font-size:11px; color:var(--muted);
+      background: rgba(255,255,255,.03);
+      border:1px solid rgba(255,255,255,.08);
+      padding:6px 10px; border-radius:999px;
+      white-space:nowrap;
+    }
     .actions{display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end}
     .btn{
       border:1px solid rgba(255,255,255,.09);
@@ -50,11 +63,12 @@
       color:var(--txt);
       padding:8px 10px;
       border-radius:12px;
-      font-size:12px;
+      font-size:11px;
       cursor:pointer;
       user-select:none;
     }
     .btn:hover{background: rgba(255,255,255,.04)}
+
     main{
       display:grid;
       grid-template-columns: 360px 1fr;
@@ -70,6 +84,8 @@
       border-radius: var(--r);
       box-shadow: var(--shadow);
       overflow:hidden;
+      position:relative;
+      z-index:1;
     }
     .head{
       display:flex; align-items:center; justify-content:space-between;
@@ -78,13 +94,6 @@
       gap:10px;
     }
     .head h2{margin:0; font-size:13px}
-    .pill{
-      font-size:11px; color:var(--muted);
-      background: rgba(255,255,255,.03);
-      border:1px solid rgba(255,255,255,.08);
-      padding:6px 10px; border-radius:999px;
-      white-space:nowrap;
-    }
     .body{padding:12px}
 
     label{display:block; font-size:11px; color:var(--muted); margin:10px 0 6px}
@@ -97,31 +106,46 @@
       padding:10px 10px;
       outline:none;
     }
-    input[type="range"]{width:100%}
+    input[type="range"]{
+      width:100%;
+      pointer-events:auto;
+      touch-action: pan-x; /* viktigt för drag på trackpads/touch */
+    }
+    input, select, textarea{ pointer-events:auto; }
+
     .row{display:grid; grid-template-columns:1fr 1fr; gap:10px}
-    .small{font-size:12px; color:var(--muted); line-height:1.35; margin-top:10px}
+    .small{font-size:11px; color:var(--muted); line-height:1.35; margin-top:10px}
 
     .view{display:none}
     .view.active{display:block}
 
-    /* graph */
-    .graphWrap{position:relative; height: calc(100vh - 120px); min-height:520px;}
+    /* ===== Graf: garanterad höjd så den syns ===== */
+    .graphWrap{
+      position:relative;
+      height: min(78vh, 900px);
+      min-height: 520px;
+      width:100%;
+    }
     #graph{width:100%; height:100%;}
     .hud{
       position:absolute; left:12px; top:12px;
       display:flex; gap:8px; flex-wrap:wrap;
+      z-index:5;
+      pointer-events:none; /* hud blockerar inte */
     }
+    .hud .btn{ pointer-events:auto; }
 
-    /* intentioner */
-    .grid2{display:grid; grid-template-columns:1fr 1fr; gap:10px}
+    /* Intentioner: mindre text */
     .kpi{
       background: rgba(255,255,255,.02);
       border:1px solid rgba(255,255,255,.06);
       border-radius:12px;
       padding:10px;
     }
-    .kpi .v{font-size:16px; font-weight:700; margin-bottom:3px}
+    .kpi .v{font-size:14px; font-weight:700; margin-bottom:3px}
     .kpi .t{font-size:11px; color:var(--muted)}
+    .grid2{display:grid; grid-template-columns:1fr 1fr; gap:10px}
+
     .bars .bar{
       border:1px solid rgba(255,255,255,.08);
       background: rgba(0,0,0,.22);
@@ -131,7 +155,7 @@
     }
     .bars .top{display:flex; justify-content:space-between; gap:10px}
     .bars .name{font-size:12px; font-weight:700}
-    .bars .val{font-size:12px; color:var(--muted)}
+    .bars .val{font-size:11px; color:var(--muted)}
     .bars .track{
       margin-top:8px;
       height:10px;
@@ -139,11 +163,7 @@
       background: rgba(255,255,255,.06);
       overflow:hidden;
     }
-    .bars .fill{
-      height:100%;
-      background: rgba(219,231,255,.35);
-      width:0%;
-    }
+    .bars .fill{height:100%; background: rgba(219,231,255,.35); width:0%;}
     .list{display:flex; flex-direction:column; gap:8px; margin-top:10px; max-height:260px; overflow:auto; padding-right:6px}
     .item{
       border:1px solid rgba(255,255,255,.07);
@@ -156,19 +176,26 @@
     .item a{color:#b8d4ff; text-decoration:none}
     .item a:hover{text-decoration:underline}
 
-    /* “UI-helskärm” */
-    .fullscreen header{display:none}
-    .fullscreen main{display:block; padding:0}
-    .fullscreen .leftCol{display:none}
-    .fullscreen .graphCard{border-radius:0;border:none;box-shadow:none}
-    .fullscreen .graphWrap{position:fixed; inset:0; z-index:9999; height:100vh !important;}
+    /* ===== Riktig helskärm på graphWrap (Fullscreen API) ===== */
+    #graphWrap:fullscreen{
+      width:100vw;
+      height:100vh;
+      min-height:100vh;
+      background: radial-gradient(1200px 800px at 40% 10%, #0e1623 0%, var(--bg) 60%);
+      padding:0;
+      margin:0;
+    }
+    #graphWrap:fullscreen #graph{
+      width:100%;
+      height:100%;
+    }
   </style>
 </head>
 
 <body>
   <header>
     <div class="title">
-      <h1>Intentioner</h1>
+      <h1>Graf + Intentioner</h1>
       <div class="sub" id="subTitle">Laddar…</div>
     </div>
 
@@ -194,7 +221,7 @@
         </div>
         <div class="body">
           <label>Sök</label>
-          <input id="q" type="text" placeholder="t.ex. cable, sabotage, drone…" />
+          <input id="q" type="text" placeholder="t.ex. sabotage, cable, drone…" />
 
           <div class="row">
             <div>
@@ -227,7 +254,7 @@
           <div class="small"><span id="kwMinVal">–</span></div>
 
           <div class="small">
-            Klicka en nod i grafen för att sätta “Urval: noden”. Intentioner-fliken räknar då på samma delmängd.
+            Klicka en nod i grafen för att sätta urval. Intentioner räknas på samma delmängd.
           </div>
         </div>
       </div>
@@ -245,9 +272,9 @@
 
     <!-- RIGHT -->
     <section class="rightCol">
-      <!-- View: Graph -->
+      <!-- Graf -->
       <div class="view active" id="viewGraph">
-        <div class="card graphCard">
+        <div class="card">
           <div class="head">
             <h2>Länkdiagram</h2>
             <span class="pill" id="hudInfo">–</span>
@@ -264,11 +291,11 @@
         </div>
       </div>
 
-      <!-- View: Intentioner -->
+      <!-- Intentioner -->
       <div class="view" id="viewIntent">
         <div class="card">
           <div class="head">
-            <h2>Intentioner – vektorer</h2>
+            <h2>Intentioner</h2>
             <span class="pill" id="pillIntent">–</span>
           </div>
           <div class="body">
@@ -279,14 +306,14 @@
               </div>
               <div class="kpi">
                 <div class="v" id="kScore">–</div>
-                <div class="t">Total “kapacitet” (viktad)</div>
+                <div class="t">Total (Troligast)</div>
               </div>
             </div>
 
             <div class="bars" id="bars"></div>
 
             <div style="margin-top:12px;">
-              <div class="pill">Radar</div>
+              <div class="pill">Radar (Bästa/Troligast/Värsta)</div>
               <svg id="radar" viewBox="0 0 360 300" style="width:100%;height:auto;margin-top:8px;"></svg>
             </div>
 
@@ -297,580 +324,13 @@
           </div>
         </div>
       </div>
+
     </section>
   </main>
 
-  <!-- events.js måste definiera EVENTS + window.EVENTS = EVENTS -->
+  <!-- 1) Events (måste sluta med window.EVENTS = EVENTS;) -->
   <script src="./events.js"></script>
-
-  <script>
-    // -----------------------------
-    // 0) Grund: hämta EVENTS
-    // -----------------------------
-    const RAW = Array.isArray(window.EVENTS) ? window.EVENTS : [];
-    if(!RAW.length){
-      document.getElementById('subTitle').textContent = '0 events (events.js saknas?)';
-      alert("EVENTS saknas eller är tom. Kontrollera events.js och att den avslutas med window.EVENTS = EVENTS;");
-    }
-
-    const $ = (s)=>document.querySelector(s);
-    const normalizeStr = (s)=> (s||'').toString().toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g,'');
-    const parseDate = (d)=>{
-      if(!d) return null;
-      const m = String(d).match(/^(\d{4})-(\d{2})-(\d{2})/);
-      if(!m) return null;
-      const dt = new Date(+m[1], +m[2]-1, +m[3]);
-      return isNaN(dt) ? null : dt;
-    };
-    const fmtDate = (dt)=>{
-      if(!dt) return '–';
-      const y=dt.getFullYear(), m=String(dt.getMonth()+1).padStart(2,'0'), d=String(dt.getDate()).padStart(2,'0');
-      return `${y}-${m}-${d}`;
-    };
-
-    // -----------------------------
-    // 1) Normalisera events
-    // -----------------------------
-    const DATA = RAW.map(e=>{
-      const date = e.date || e.time || e.dt || e.datetime || '';
-      return {
-        ...e,
-        date,
-        _dt: parseDate(date),
-        _cat: (e.cat || e.category || '').toString().trim(),
-        _country: (e.country || e.land || '').toString().trim(),
-        _title: (e.title || e.name || '').toString(),
-        _summary: (e.summary || e.desc || e.description || '').toString(),
-        _url: (e.url || e.link || '').toString(),
-        // risk/trolighet kan du ha eller inte – defaults nedan
-        _risk: Number(e.risk ?? e.severity ?? 3) || 3,
-        _likelihood: (e.likelihood || e.trolighet || e.confidence || '').toString().toLowerCase().trim()
-      };
-    });
-
-    // -----------------------------
-    // 2) Flikar
-    // -----------------------------
-    function setTab(which){
-      $('#tabGraph').classList.toggle('active', which==='graph');
-      $('#tabIntent').classList.toggle('active', which==='intent');
-      $('#viewGraph').classList.toggle('active', which==='graph');
-      $('#viewIntent').classList.toggle('active', which==='intent');
-    }
-    $('#tabGraph').addEventListener('click', ()=>setTab('graph'));
-    $('#tabIntent').addEventListener('click', ()=>setTab('intent'));
-
-    // -----------------------------
-    // 3) Filter UI
-    // -----------------------------
-    function fillSelect(sel, arr){
-      sel.innerHTML='';
-      arr.forEach(v=>{
-        const o=document.createElement('option');
-        o.value=v; o.textContent=v;
-        sel.appendChild(o);
-      });
-    }
-    const cats = ['Alla', ...Array.from(new Set(DATA.map(e=>e._cat).filter(Boolean))).sort()];
-    const ctrs = ['Alla', ...Array.from(new Set(DATA.map(e=>e._country).filter(Boolean))).sort()];
-    fillSelect($('#cat'), cats);
-    fillSelect($('#country'), ctrs);
-
-    const dates = DATA.map(e=>e._dt).filter(Boolean).sort((a,b)=>a-b);
-    const minDt = dates[0] || null;
-    const maxDt = dates[dates.length-1] || null;
-    if(minDt) $('#dFrom').value = fmtDate(minDt);
-    if(maxDt) $('#dTo').value = fmtDate(maxDt);
-
-    $('#limit').value = String(Math.min(600, Math.max(200, DATA.length)));
-    $('#kwMin').value = '3';
-
-    function updateSliders(){
-      $('#limitVal').textContent = `${$('#limit').value} st`;
-      $('#kwMinVal').textContent = `${$('#kwMin').value}`;
-    }
-    updateSliders();
-
-    // -----------------------------
-    // 4) “Scope” = urval via grafklick
-    // -----------------------------
-    let SCOPE = { type:'all', id:null, label:'Alla', eventIdxSet:null }; // eventIdxSet = Set(index i current list)
-
-    function setScopeAll(){
-      SCOPE = { type:'all', id:null, label:'Alla', eventIdxSet:null };
-      $('#pillScope').textContent = `Urval: Alla`;
-      $('#pillSel').textContent = '–';
-      $('#detail').textContent = 'Klicka en nod i grafen.';
-      refresh(); // graf+intentioner
-    }
-    $('#btnClearScope').addEventListener('click', setScopeAll);
-
-    // -----------------------------
-    // 5) Nyckelord
-    // -----------------------------
-    const STOP = new Set(['och','att','som','det','den','en','ett','i','på','av','för','med','till','om','från','under','efter','innan',
-      'the','a','an','and','or','of','to','in','on','for','with','from','at','by','as','is','are','was','were','be',
-      'har','ha','hade','kan','kunde','ska','skulle','säger','uppger','enligt','mot','vid','nu','där','då']);
-    function tokenize(text){
-      const t = normalizeStr(text)
-        .replace(/https?:\/\/\S+/g,' ')
-        .replace(/[^\p{L}\p{N}]+/gu,' ')
-        .trim();
-      if(!t) return [];
-      return t.split(/\s+/g).filter(Boolean)
-        .filter(w=>w.length>=4 && !STOP.has(w));
-    }
-    function keywordCounts(events){
-      const c=new Map();
-      events.forEach(e=>{
-        tokenize(`${e._title} ${e._summary}`).forEach(w=>c.set(w,(c.get(w)||0)+1));
-      });
-      return c;
-    }
-
-    // -----------------------------
-    // 6) Filtrera events
-    // -----------------------------
-    function applyFilters(){
-      updateSliders();
-      const q = normalizeStr($('#q').value);
-      const cat = $('#cat').value;
-      const country = $('#country').value;
-      const from = parseDate($('#dFrom').value);
-      const to = parseDate($('#dTo').value);
-      const limit = Number($('#limit').value);
-
-      let list = DATA.filter(e=>{
-        if(cat!=='Alla' && e._cat!==cat) return false;
-        if(country!=='Alla' && e._country!==country) return false;
-        if(from && e._dt && e._dt < from) return false;
-        if(to && e._dt && e._dt > to) return false;
-        if(q){
-          const hay = normalizeStr(`${e._title} ${e._summary} ${e._cat} ${e._country}`);
-          if(!hay.includes(q)) return false;
-        }
-        return true;
-      });
-
-      list.sort((a,b)=>(b._dt?.getTime()||0)-(a._dt?.getTime()||0));
-      if(list.length>limit) list=list.slice(0,limit);
-      return list;
-    }
-
-    // -----------------------------
-    // 7) Graf (D3 force)
-    // -----------------------------
-    let svg, gRoot, sim, current = {events:[], nodes:[], links:[]};
-
-    function nodeRadius(n){
-      if(n.type==='event') return 6 + Math.min(10, n.degree||0);
-      if(n.type==='cat') return 12 + Math.min(12, n.degree||0);
-      if(n.type==='country') return 12 + Math.min(12, n.degree||0);
-      if(n.type==='kw') return 10 + Math.min(10, n.degree||0);
-      return 10;
-    }
-
-    function buildGraph(events){
-      const kwMin = Number($('#kwMin').value);
-      const counts = keywordCounts(events);
-      const kw = Array.from(counts.entries()).filter(([,v])=>v>=kwMin).sort((a,b)=>b[1]-a[1]).slice(0,120);
-      const kwSet = new Set(kw.map(([k])=>k));
-
-      const nodes=[], links=[], byId=new Map();
-      const add=(id,obj)=>{ if(byId.has(id)) return byId.get(id); const n={id,degree:0,...obj}; byId.set(id,n); nodes.push(n); return n; };
-
-      // cat/country/kw nodes
-      Array.from(new Set(events.map(e=>e._cat).filter(Boolean))).forEach(c=>add(`cat:${c}`,{type:'cat',label:c}));
-      Array.from(new Set(events.map(e=>e._country).filter(Boolean))).forEach(c=>add(`ctry:${c}`,{type:'country',label:c}));
-      kwSet.forEach(w=>add(`kw:${w}`,{type:'kw',label:w}));
-
-      events.forEach((e, idx)=>{
-        const eid=`ev:${idx}`;
-        add(eid,{type:'event',label:e._title||'Event', ev:e, evIdx: idx});
-        if(e._cat) links.push({source:eid, target:`cat:${e._cat}`});
-        if(e._country) links.push({source:eid, target:`ctry:${e._country}`});
-        const toks = Array.from(new Set(tokenize(`${e._title} ${e._summary}`).filter(w=>kwSet.has(w)))).slice(0,8);
-        toks.forEach(w=>links.push({source:eid, target:`kw:${w}`}));
-      });
-
-      links.forEach(l=>{
-        const a=byId.get(l.source), b=byId.get(l.target);
-        if(a) a.degree++; if(b) b.degree++;
-      });
-
-      return {nodes, links};
-    }
-
-    function initGraph(){
-      const host = document.getElementById('graph');
-      host.innerHTML='';
-      const w=host.clientWidth||900, h=host.clientHeight||600;
-
-      svg=d3.select(host).append('svg').attr('width',w).attr('height',h);
-      const zoom=d3.zoom().scaleExtent([0.12,4]).on('zoom', (ev)=>gRoot.attr('transform', ev.transform));
-      svg.call(zoom);
-      gRoot=svg.append('g');
-      gRoot.append('g').attr('class','links');
-      gRoot.append('g').attr('class','nodes');
-      gRoot.append('g').attr('class','labels');
-
-      const ro=new ResizeObserver(()=>{
-        const ww=host.clientWidth||900, hh=host.clientHeight||600;
-        svg.attr('width',ww).attr('height',hh);
-        if(sim){
-          sim.force('center', d3.forceCenter(ww/2, hh/2));
-          sim.alpha(0.25).restart();
-        }
-      });
-      ro.observe(host);
-
-      $('#btnZoomFit').addEventListener('click', ()=>zoomToFit(zoom));
-    }
-
-    function zoomToFit(zoom, pad=0.15){
-      const host=document.getElementById('graph');
-      const w=host.clientWidth||900, h=host.clientHeight||600;
-      const xs=current.nodes.map(n=>n.x).filter(Number.isFinite);
-      const ys=current.nodes.map(n=>n.y).filter(Number.isFinite);
-      if(!xs.length||!ys.length) return;
-
-      const minX=Math.min(...xs), maxX=Math.max(...xs);
-      const minY=Math.min(...ys), maxY=Math.max(...ys);
-      const dx=maxX-minX, dy=maxY-minY;
-      const cx=(minX+maxX)/2, cy=(minY+maxY)/2;
-      const scale=0.92/Math.max(dx/w, dy/h);
-      const s=Math.max(0.12, Math.min(4, scale));
-      const tx=w/2 - s*cx;
-      const ty=h/2 - s*cy;
-      const tr=d3.zoomIdentity.translate(tx,ty).scale(s);
-      svg.transition().duration(450).call(zoom.transform, tr);
-    }
-
-    function renderGraph(model){
-      current.nodes=model.nodes;
-      current.links=model.links;
-
-      const linkG=gRoot.select('g.links');
-      const nodeG=gRoot.select('g.nodes');
-      const labelG=gRoot.select('g.labels');
-
-      const links=linkG.selectAll('line').data(current.links);
-      links.exit().remove();
-      links.enter().append('line')
-        .attr('stroke','rgba(255,255,255,.14)')
-        .attr('stroke-width',1)
-        .attr('stroke-opacity',0.55);
-
-      const nodes=nodeG.selectAll('circle').data(current.nodes, d=>d.id);
-      nodes.exit().remove();
-      const nodesEnter = nodes.enter().append('circle')
-        .attr('r', d=>nodeRadius(d))
-        .attr('fill','rgba(255,255,255,.06)')
-        .attr('stroke','rgba(219,231,255,.75)')
-        .attr('stroke-width',1.1)
-        .attr('cursor','pointer')
-        .call(d3.drag()
-          .on('start', (ev,d)=>{ if(!ev.active) sim.alphaTarget(0.25).restart(); d.fx=d.x; d.fy=d.y; })
-          .on('drag', (ev,d)=>{ d.fx=ev.x; d.fy=ev.y; })
-          .on('end', (ev,d)=>{ if(!ev.active) sim.alphaTarget(0); })
-        )
-        .on('click', (_,d)=>onNodeClick(d));
-
-      // labels för icke-event (och några event)
-      const topEvents = current.nodes.filter(n=>n.type==='event').sort((a,b)=>(b.degree||0)-(a.degree||0)).slice(0,18).map(n=>n.id);
-      const labelNodes = current.nodes.filter(n=> n.type!=='event' || topEvents.includes(n.id));
-      const labels=labelG.selectAll('text').data(labelNodes, d=>d.id);
-      labels.exit().remove();
-      labels.enter().append('text')
-        .text(d=>d.label)
-        .attr('font-size', d=>d.type==='event'?10:11)
-        .attr('fill','rgba(219,231,255,.75)')
-        .attr('pointer-events','none');
-
-      // simulation
-      const host=document.getElementById('graph');
-      const w=host.clientWidth||900, h=host.clientHeight||600;
-      if(sim) sim.stop();
-      sim=d3.forceSimulation(current.nodes)
-        .force('link', d3.forceLink(current.links).id(d=>d.id).distance(70).strength(0.6))
-        .force('charge', d3.forceManyBody().strength(-420))
-        .force('center', d3.forceCenter(w/2,h/2))
-        .force('collide', d3.forceCollide().radius(d=>nodeRadius(d)+3).iterations(2))
-        .on('tick', ()=>{
-          linkG.selectAll('line')
-            .attr('x1', d=>d.source.x).attr('y1', d=>d.source.y)
-            .attr('x2', d=>d.target.x).attr('y2', d=>d.target.y);
-          nodeG.selectAll('circle')
-            .attr('cx', d=>d.x).attr('cy', d=>d.y);
-          labelG.selectAll('text')
-            .attr('x', d=>d.x+10).attr('y', d=>d.y+4);
-        });
-
-      $('#hudInfo').textContent = `${current.nodes.length} noder • ${current.links.length} länkar`;
-    }
-
-    function onNodeClick(n){
-      $('#pillSel').textContent = n.type;
-      if(n.type==='event'){
-        const e=n.ev;
-        $('#detail').innerHTML = `<b>${escapeHtml(e._title||'Event')}</b><br>
-          <span style="color:var(--muted)">${escapeHtml(e._cat||'–')} • ${escapeHtml(e._country||'–')} • ${escapeHtml(e.date||'')}</span><br>
-          <span>${escapeHtml((e._summary||'').slice(0,320))}${(e._summary||'').length>320?'…':''}</span><br>
-          ${e._url?`<a href="${encodeURI(e._url)}" target="_blank" rel="noopener">Öppna källa</a>`:''}`;
-        // scope = just det eventet
-        SCOPE = { type:'event', id:n.id, label:e._title||'Event', eventIdxSet: new Set([n.evIdx]) };
-      } else {
-        // scope = alla events som är länkade till noden
-        const id=n.id;
-        const evIds = new Set(
-          current.links
-            .filter(l => (l.source.id||l.source)===id || (l.target.id||l.target)===id)
-            .map(l => ((l.source.id||l.source)===id ? (l.target.id||l.target) : (l.source.id||l.source)))
-            .filter(x=>String(x).startsWith('ev:'))
-        );
-        const idxSet = new Set();
-        for(const evId of evIds){
-          const m = String(evId).match(/^ev:(\d+)$/);
-          if(m) idxSet.add(Number(m[1]));
-        }
-        SCOPE = { type:n.type, id:n.id, label:n.label||n.id, eventIdxSet: idxSet };
-        $('#detail').innerHTML = `<b>${escapeHtml(n.label||n.id)}</b><br><span style="color:var(--muted)">${idxSet.size} relaterade events</span>`;
-      }
-      $('#pillScope').textContent = `Urval: ${SCOPE.label}`;
-      refreshIntentioner(); // samspel direkt
-    }
-
-    function escapeHtml(s){
-      return (s||'').toString().replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;');
-    }
-
-    // -----------------------------
-    // 8) Intentioner-beräkning (vektorer)
-    // -----------------------------
-    const DIMS = [
-      {key:'intention', label:'Intentioner'},
-      {key:'facilitering', label:'Facilitering'},
-      {key:'resurser', label:'Resurser'},
-      {key:'tillfalle', label:'Tillfälle'}
-    ];
-
-    // Justera mappingen så den matchar din logik
-    const CAT_TO_DIM = {
-      HYBRID:'intention', POLICY:'intention', TERROR:'intention',
-      INTEL:'facilitering', LEGAL:'facilitering',
-      MIL:'resurser', MAR:'resurser', INFRA:'resurser', NUCLEAR:'resurser',
-      DRONE:'tillfalle', GPS:'tillfalle'
-    };
-
-    const LIKELIHOOD_W = {
-      bekraftat: 1.00,
-      sannolikt: 0.80,
-      troligt:   0.60,
-      mojligt:   0.30,
-      tveksamt:  0.05
-    };
-
-    function weightFor(e){
-      // om du inte har likelihood i events → default 1
-      const k = (e._likelihood||'').replace('möjligt','mojligt').replace('tveksamt','tveksamt');
-      return LIKELIHOOD_W[k] ?? 1.0;
-    }
-
-    function computeVectors(events){
-      const scores = Object.fromEntries(DIMS.map(d=>[d.key,0]));
-      const contrib = []; // per event
-      for(const e of events){
-        const dim = CAT_TO_DIM[e._cat] || 'intention';
-        const w = weightFor(e);
-        const base = Math.max(1, Math.min(5, e._risk || 3));
-        const val = base * w;
-        scores[dim] += val;
-        contrib.push({e, dim, val});
-      }
-      // normalisera till 0–100
-      const max = Math.max(1, ...Object.values(scores));
-      const pct = {};
-      for(const d of DIMS) pct[d.key] = Math.round((scores[d.key]/max)*100);
-      const total = Object.values(scores).reduce((a,b)=>a+b,0);
-
-      contrib.sort((a,b)=>b.val-a.val);
-      return {scores, pct, total, contrib};
-    }
-
-    function renderBars(pct){
-      const host = $('#bars');
-      host.innerHTML='';
-      for(const d of DIMS){
-        const v = pct[d.key] ?? 0;
-        const el = document.createElement('div');
-        el.className='bar';
-        el.innerHTML = `
-          <div class="top">
-            <div class="name">${d.label}</div>
-            <div class="val">${v}/100</div>
-          </div>
-          <div class="track"><div class="fill" style="width:${v}%"></div></div>
-        `;
-        host.appendChild(el);
-      }
-    }
-
-    function renderRadar(pct){
-      const svg = d3.select('#radar');
-      svg.selectAll('*').remove();
-
-      const W=360,H=300, cx=W/2, cy=150, r=110;
-      const axes = DIMS.length;
-      const angle = (i)=> (Math.PI*2*i/axes) - Math.PI/2;
-
-      // ringar
-      for(const rr of [0.25,0.5,0.75,1]){
-        svg.append('circle')
-          .attr('cx',cx).attr('cy',cy).attr('r', r*rr)
-          .attr('fill','none').attr('stroke','rgba(255,255,255,.10)');
-      }
-
-      // axlar + labels
-      DIMS.forEach((d,i)=>{
-        const a = angle(i);
-        const x = cx + Math.cos(a)*r;
-        const y = cy + Math.sin(a)*r;
-        svg.append('line')
-          .attr('x1',cx).attr('y1',cy).attr('x2',x).attr('y2',y)
-          .attr('stroke','rgba(255,255,255,.12)');
-        svg.append('text')
-          .attr('x', cx + Math.cos(a)*(r+18))
-          .attr('y', cy + Math.sin(a)*(r+18))
-          .attr('fill','rgba(219,231,255,.78)')
-          .attr('font-size', 11)
-          .attr('text-anchor', Math.cos(a)>0.2?'start':(Math.cos(a)<-0.2?'end':'middle'))
-          .attr('dominant-baseline','middle')
-          .text(d.label);
-      });
-
-      // polygon
-      const pts = DIMS.map((d,i)=>{
-        const v = (pct[d.key]??0)/100;
-        const a = angle(i);
-        return [cx + Math.cos(a)*r*v, cy + Math.sin(a)*r*v];
-      });
-
-      svg.append('polygon')
-        .attr('points', pts.map(p=>p.join(',')).join(' '))
-        .attr('fill','rgba(219,231,255,.18)')
-        .attr('stroke','rgba(219,231,255,.55)')
-        .attr('stroke-width',1.2);
-
-      // points
-      pts.forEach(p=>{
-        svg.append('circle').attr('cx',p[0]).attr('cy',p[1]).attr('r',3.2)
-          .attr('fill','rgba(219,231,255,.7)');
-      });
-    }
-
-    function renderTop(contrib){
-      const host=$('#topList');
-      host.innerHTML='';
-      contrib.slice(0,15).forEach(c=>{
-        const e=c.e;
-        const el=document.createElement('div');
-        el.className='item';
-        el.innerHTML = `
-          <div class="it">${escapeHtml(e._title||'Event')}</div>
-          <div class="im">${escapeHtml(e._cat||'–')} • ${escapeHtml(e._country||'–')} • dim: <b>${escapeHtml(c.dim)}</b> • +${c.val.toFixed(2)}</div>
-          ${e._url?`<a href="${encodeURI(e._url)}" target="_blank" rel="noopener">Källa</a>`:''}
-        `;
-        host.appendChild(el);
-      });
-    }
-
-    function refreshIntentioner(){
-      // utgång: filter-listan
-      const base = current.events || [];
-      // scope ur den listan (index i graph-building list)
-      let scoped = base;
-      if(SCOPE.eventIdxSet && SCOPE.eventIdxSet.size){
-        scoped = base.filter((_,idx)=>SCOPE.eventIdxSet.has(idx));
-      }
-
-      const res = computeVectors(scoped);
-      $('#pillIntent').textContent = `Urval: ${SCOPE.label} • ${scoped.length} events`;
-      $('#kEvents').textContent = String(scoped.length);
-      $('#kScore').textContent = res.total.toFixed(1);
-
-      renderBars(res.pct);
-      renderRadar(res.pct);
-      renderTop(res.contrib);
-    }
-
-    // -----------------------------
-    // 9) Refresh (graf + intentioner)
-    // -----------------------------
-    function refresh(){
-      const list = applyFilters();
-      current.events = list;
-
-      $('#subTitle').textContent = `${DATA.length} events totalt`;
-      $('#pillCount').textContent = `${list.length} i filter`;
-
-      // Om du har ett scope, behåll det – men om urvalet blivit tomt: rensa scope
-      if(SCOPE.eventIdxSet && SCOPE.eventIdxSet.size){
-        const still = new Set();
-        // scope-index avser index i graph-listan – om listan krympt kan vissa index saknas
-        for(const i of SCOPE.eventIdxSet) if(i >= 0 && i < list.length) still.add(i);
-        SCOPE.eventIdxSet = still;
-        if(!still.size) setScopeAll();
-      }
-
-      if(!svg) initGraph();
-      const model = buildGraph(list);
-      renderGraph(model);
-
-      refreshIntentioner();
-    }
-
-    // listeners
-    ['input','change'].forEach(ev=>{
-      $('#q').addEventListener(ev, refresh);
-      $('#dFrom').addEventListener(ev, refresh);
-      $('#dTo').addEventListener(ev, refresh);
-      $('#cat').addEventListener(ev, refresh);
-      $('#country').addEventListener(ev, refresh);
-      $('#limit').addEventListener(ev, refresh);
-      $('#kwMin').addEventListener(ev, refresh);
-    });
-
-    $('#btnReset').addEventListener('click', ()=>{
-      $('#q').value='';
-      $('#cat').value='Alla';
-      $('#country').value='Alla';
-      if(minDt) $('#dFrom').value=fmtDate(minDt);
-      if(maxDt) $('#dTo').value=fmtDate(maxDt);
-      $('#limit').value=String(Math.min(600, Math.max(200, DATA.length)));
-      $('#kwMin').value='3';
-      setScopeAll();
-      refresh();
-    });
-
-    // UI-helskärm graf
-    function setFullscreen(on){
-      document.documentElement.classList.toggle('fullscreen', on);
-      $('#btnFullscreen').textContent = on ? 'Avsluta helskärm' : 'Helskärm (graf)';
-      setTab('graph');
-      setTimeout(refresh, 80);
-    }
-    $('#btnFullscreen').addEventListener('click', ()=>{
-      const on = !document.documentElement.classList.contains('fullscreen');
-      setFullscreen(on);
-    });
-    window.addEventListener('keydown', (e)=>{
-      if(e.key==='Escape' && document.documentElement.classList.contains('fullscreen')) setFullscreen(false);
-    });
-
-    // init
-    setTab('graph');
-    setScopeAll();
-    refresh();
-  </script>
+  <!-- 2) App -->
+  <script src="./app.js"></script>
 </body>
 </html>
