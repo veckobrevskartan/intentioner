@@ -3,27 +3,24 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Graf + Intentioner (EVENTS)</title>
+  <title>Intentioner – Graf</title>
 
-  <!-- D3 -->
-  <script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
-
+  <!-- Status + felvisning (visas även om allt annat failar) -->
   <style>
     :root{
       --bg:#0b0f14; --txt:#dbe7ff; --muted:#9fb0cc;
       --panel:rgba(255,255,255,.03); --stroke:rgba(255,255,255,.08);
       --shadow: 0 10px 30px rgba(0,0,0,.35); --r:14px;
+      --ok:#7CFFB2; --warn:#FFD37C; --bad:#FF7C7C;
     }
-    html, body { height:100%; }
-    *{box-sizing:border-box}
+    html,body{height:100%}
     body{
       margin:0;
       font-family: ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;
       background: radial-gradient(1200px 800px at 40% 10%, #0e1623 0%, var(--bg) 60%);
       color:var(--txt);
-      font-size:14px; /* mindre bas */
+      font-size:14px;
     }
-
     header{
       position:sticky; top:0; z-index:50;
       display:flex; align-items:center; justify-content:space-between;
@@ -32,31 +29,10 @@
       backdrop-filter: blur(10px);
       border-bottom:1px solid rgba(255,255,255,.06);
       gap:10px;
+      flex-wrap:wrap;
     }
-    .title{display:flex; gap:10px; align-items:baseline; flex-wrap:wrap}
-    h1{font-size:15px; margin:0}
-    .sub{font-size:12px; color:var(--muted)}
-
-    .tabs{display:flex; gap:8px; align-items:center; flex-wrap:wrap}
-    .tab{
-      border:1px solid rgba(255,255,255,.09);
-      background: rgba(255,255,255,.02);
-      color:var(--txt);
-      padding:8px 10px;
-      border-radius:999px;
-      font-size:11px;
-      cursor:pointer;
-      user-select:none;
-    }
-    .tab.active{background: rgba(255,255,255,.06); border-color: rgba(255,255,255,.14)}
-    .pill{
-      font-size:11px; color:var(--muted);
-      background: rgba(255,255,255,.03);
-      border:1px solid rgba(255,255,255,.08);
-      padding:6px 10px; border-radius:999px;
-      white-space:nowrap;
-    }
-    .actions{display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end}
+    h1{font-size:15px;margin:0}
+    .sub{font-size:12px;color:var(--muted)}
     .btn{
       border:1px solid rgba(255,255,255,.09);
       background: rgba(255,255,255,.02);
@@ -68,7 +44,6 @@
       user-select:none;
     }
     .btn:hover{background: rgba(255,255,255,.04)}
-
     main{
       display:grid;
       grid-template-columns: 360px 1fr;
@@ -106,131 +81,147 @@
       padding:10px 10px;
       outline:none;
     }
-    input[type="range"]{
-      width:100%;
-      pointer-events:auto;
-      touch-action: pan-x; /* viktigt för drag på trackpads/touch */
-    }
-    input, select, textarea{ pointer-events:auto; }
+    input, select, textarea { pointer-events:auto; }
+    input[type="range"]{ width:100%; touch-action: pan-x; }
 
     .row{display:grid; grid-template-columns:1fr 1fr; gap:10px}
-    .small{font-size:11px; color:var(--muted); line-height:1.35; margin-top:10px}
+    .pill{
+      font-size:11px; color:var(--muted);
+      background: rgba(255,255,255,.03);
+      border:1px solid rgba(255,255,255,.08);
+      padding:6px 10px; border-radius:999px;
+      white-space:nowrap;
+    }
 
     .view{display:none}
     .view.active{display:block}
 
-    /* ===== Graf: garanterad höjd så den syns ===== */
+    /* Graf-höjd: annars blir det svart */
     .graphWrap{
       position:relative;
       height: min(78vh, 900px);
       min-height: 520px;
       width:100%;
     }
-    #graph{width:100%; height:100%;}
+    #graph{width:100%;height:100%}
+
     .hud{
       position:absolute; left:12px; top:12px;
       display:flex; gap:8px; flex-wrap:wrap;
       z-index:5;
-      pointer-events:none; /* hud blockerar inte */
+      pointer-events:none;
     }
     .hud .btn{ pointer-events:auto; }
 
-    /* Intentioner: mindre text */
-    .kpi{
-      background: rgba(255,255,255,.02);
-      border:1px solid rgba(255,255,255,.06);
+    /* Statusruta */
+    #statusBox{
+      border:1px solid rgba(255,255,255,.10);
+      background: rgba(0,0,0,.25);
       border-radius:12px;
       padding:10px;
+      font-size:12px;
+      line-height:1.35;
     }
-    .kpi .v{font-size:14px; font-weight:700; margin-bottom:3px}
-    .kpi .t{font-size:11px; color:var(--muted)}
-    .grid2{display:grid; grid-template-columns:1fr 1fr; gap:10px}
-
-    .bars .bar{
-      border:1px solid rgba(255,255,255,.08);
-      background: rgba(0,0,0,.22);
-      border-radius:12px;
-      padding:10px;
-      margin-top:10px;
-    }
-    .bars .top{display:flex; justify-content:space-between; gap:10px}
-    .bars .name{font-size:12px; font-weight:700}
-    .bars .val{font-size:11px; color:var(--muted)}
-    .bars .track{
+    .srow{display:flex; gap:8px; align-items:center; margin:4px 0}
+    .dot{width:10px;height:10px;border-radius:50%}
+    .ok{background:var(--ok)}
+    .warn{background:var(--warn)}
+    .bad{background:var(--bad)}
+    code{font-family: ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace; font-size:11px; color:#cfe1ff;}
+    .small{font-size:11px;color:var(--muted);margin-top:8px}
+    .err{
       margin-top:8px;
-      height:10px;
-      border-radius:999px;
-      background: rgba(255,255,255,.06);
-      overflow:hidden;
-    }
-    .bars .fill{height:100%; background: rgba(219,231,255,.35); width:0%;}
-    .list{display:flex; flex-direction:column; gap:8px; margin-top:10px; max-height:260px; overflow:auto; padding-right:6px}
-    .item{
-      border:1px solid rgba(255,255,255,.07);
-      background: rgba(255,255,255,.02);
+      padding:8px;
       border-radius:12px;
-      padding:10px;
+      border:1px solid rgba(255,124,124,.35);
+      background: rgba(255,124,124,.10);
+      color:#ffd6d6;
+      white-space:pre-wrap;
     }
-    .item .it{font-size:12px; font-weight:700; margin-bottom:4px}
-    .item .im{font-size:11px; color:var(--muted); margin-bottom:6px}
-    .item a{color:#b8d4ff; text-decoration:none}
-    .item a:hover{text-decoration:underline}
 
-    /* ===== Riktig helskärm på graphWrap (Fullscreen API) ===== */
-    #graphWrap:fullscreen{
-      width:100vw;
-      height:100vh;
-      min-height:100vh;
-      background: radial-gradient(1200px 800px at 40% 10%, #0e1623 0%, var(--bg) 60%);
-      padding:0;
-      margin:0;
-    }
-    #graphWrap:fullscreen #graph{
-      width:100%;
-      height:100%;
-    }
+    /* Fullscreen */
+    #graphWrap:fullscreen{width:100vw;height:100vh;min-height:100vh;margin:0}
+    #graphWrap:fullscreen #graph{width:100%;height:100%}
   </style>
+
+  <!-- Fångar fel tidigt och visar på sidan -->
+  <script>
+    window.__APP_ERRORS__ = [];
+    function addStatusError(msg){
+      window.__APP_ERRORS__.push(String(msg||"Okänt fel"));
+      const el = document.getElementById("statusErrors");
+      if(el){
+        el.textContent = window.__APP_ERRORS__.join("\n\n");
+        el.style.display = "block";
+      }
+    }
+    window.addEventListener("error", (e)=> addStatusError(e.message || e.error || e));
+    window.addEventListener("unhandledrejection", (e)=> addStatusError(e.reason || e));
+  </script>
+
+  <!-- D3 -->
+  <script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"
+          onload="window.__D3_OK__=true"
+          onerror="window.__D3_OK__=false; addStatusError('D3 kunde inte laddas (cdn).')"></script>
+
 </head>
 
 <body>
   <header>
-    <div class="title">
-      <h1>Graf + Intentioner</h1>
-      <div class="sub" id="subTitle">Laddar…</div>
+    <div>
+      <h1>Intentioner – graf</h1>
+      <div class="sub" id="subTitle">Startar…</div>
     </div>
 
-    <div class="tabs">
-      <button class="tab active" id="tabGraph">Graf</button>
-      <button class="tab" id="tabIntent">Intentioner</button>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn" id="tabGraph">Graf</button>
+      <button class="btn" id="tabIntent">Intentioner</button>
       <span class="pill" id="pillScope">Urval: Alla</span>
     </div>
 
-    <div class="actions">
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
       <button class="btn" id="btnFullscreen">Helskärm (graf)</button>
       <button class="btn" id="btnReset">Återställ</button>
     </div>
   </header>
 
   <main>
-    <!-- LEFT -->
-    <section class="leftCol">
+    <section>
       <div class="card">
         <div class="head">
-          <h2>Filter</h2>
+          <h2>Status</h2>
           <span class="pill" id="pillCount">–</span>
         </div>
         <div class="body">
+          <div id="statusBox">
+            <div class="srow"><span class="dot warn" id="dotD3"></span><b>D3</b> <span id="stD3">kontrollerar…</span></div>
+            <div class="srow"><span class="dot warn" id="dotEvents"></span><b>EVENTS</b> <span id="stEvents">kontrollerar…</span></div>
+            <div class="srow"><span class="dot warn" id="dotApp"></span><b>App</b> <span id="stApp">kontrollerar…</span></div>
+            <div class="small">
+              Den här rutan ska bli grön på alla tre rader. Om något är rött finns feltext under.
+            </div>
+            <div class="err" id="statusErrors" style="display:none"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:12px;">
+        <div class="head">
+          <h2>Filter</h2>
+          <span class="pill" id="pillSel">–</span>
+        </div>
+        <div class="body">
           <label>Sök</label>
-          <input id="q" type="text" placeholder="t.ex. sabotage, cable, drone…" />
+          <input id="q" type="text" placeholder="t.ex. sabotage, cable, drone…" autocomplete="off"/>
 
           <div class="row">
             <div>
               <label>Från datum</label>
-              <input id="dFrom" type="date" />
+              <input id="dFrom" type="date" autocomplete="off"/>
             </div>
             <div>
               <label>Till datum</label>
-              <input id="dTo" type="date" />
+              <input id="dTo" type="date" autocomplete="off"/>
             </div>
           </div>
 
@@ -245,34 +236,20 @@
             </div>
           </div>
 
-          <label>Max events i urval</label>
+          <label>Max events</label>
           <input id="limit" type="range" min="50" max="2000" step="50" />
-          <div class="small"><span id="limitVal">–</span></div>
+          <div class="small" id="limitVal">–</div>
 
           <label>Nyckelord: min förekomst</label>
           <input id="kwMin" type="range" min="2" max="25" step="1" />
-          <div class="small"><span id="kwMinVal">–</span></div>
+          <div class="small" id="kwMinVal">–</div>
 
-          <div class="small">
-            Klicka en nod i grafen för att sätta urval. Intentioner räknas på samma delmängd.
-          </div>
-        </div>
-      </div>
-
-      <div class="card" style="margin-top:12px;">
-        <div class="head">
-          <h2>Detalj</h2>
-          <span class="pill" id="pillSel">–</span>
-        </div>
-        <div class="body">
-          <div id="detail" class="small">Klicka en nod i grafen.</div>
+          <div class="small" id="detail">Klicka nod i grafen för urval.</div>
         </div>
       </div>
     </section>
 
-    <!-- RIGHT -->
-    <section class="rightCol">
-      <!-- Graf -->
+    <section>
       <div class="view active" id="viewGraph">
         <div class="card">
           <div class="head">
@@ -283,7 +260,7 @@
             <div class="graphWrap" id="graphWrap">
               <div class="hud">
                 <button class="btn" id="btnZoomFit">Zooma till urval</button>
-                <button class="btn" id="btnClearScope">Rensa urval (Alla)</button>
+                <button class="btn" id="btnClearScope">Rensa urval</button>
               </div>
               <div id="graph"></div>
             </div>
@@ -291,7 +268,6 @@
         </div>
       </div>
 
-      <!-- Intentioner -->
       <div class="view" id="viewIntent">
         <div class="card">
           <div class="head">
@@ -299,38 +275,21 @@
             <span class="pill" id="pillIntent">–</span>
           </div>
           <div class="body">
-            <div class="grid2">
-              <div class="kpi">
-                <div class="v" id="kEvents">–</div>
-                <div class="t">Events i beräkning</div>
-              </div>
-              <div class="kpi">
-                <div class="v" id="kScore">–</div>
-                <div class="t">Total (Troligast)</div>
-              </div>
-            </div>
-
-            <div class="bars" id="bars"></div>
-
-            <div style="margin-top:12px;">
-              <div class="pill">Radar (Bästa/Troligast/Värsta)</div>
-              <svg id="radar" viewBox="0 0 360 300" style="width:100%;height:auto;margin-top:8px;"></svg>
-            </div>
-
-            <div style="margin-top:12px;">
-              <div class="pill">Största bidrag (topp 15)</div>
-              <div class="list" id="topList"></div>
-            </div>
+            <div class="pill">Här ska intentioner renderas av app.js</div>
+            <div class="small" id="intentOut">–</div>
           </div>
         </div>
       </div>
-
     </section>
   </main>
 
-  <!-- 1) Events (måste sluta med window.EVENTS = EVENTS;) -->
-  <script src="./events.js"></script>
-  <!-- 2) App -->
-  <script src="./app.js"></script>
+  <!-- EVENTS + APP (med onerror så du ser 404 direkt) -->
+  <script src="./events.js"
+          onload="window.__EVENTS_OK__=true"
+          onerror="window.__EVENTS_OK__=false; addStatusError('events.js kunde inte laddas (404 eller fel sökväg).')"></script>
+
+  <script src="./app.js"
+          onload="window.__APP_LOADED__=true"
+          onerror="window.__APP_LOADED__=false; addStatusError('app.js kunde inte laddas (404 eller fel sökväg).')"></script>
 </body>
 </html>
