@@ -1,15 +1,14 @@
-/* app.js – Graf + Intentioner (Bästa/Troligast/Värsta) utan att ändra EVENTS
+/* app.js – Graf + Intentioner (Bästa/Troligast/Värsta) utan att ändra events.js
    Kräver:
    - events.js som sätter window.EVENTS = EVENTS;
    - d3@7 laddat i index.html
-   - index.html med IDs som anges i kommentaren ovan
 */
 
 (() => {
   "use strict";
 
   // -----------------------------
-  // 0) Små helpers
+  // Helpers
   // -----------------------------
   const $ = (s) => document.querySelector(s);
   const on = (el, ev, fn) => el && el.addEventListener(ev, fn);
@@ -48,29 +47,14 @@
 
   const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
 
-  function assertDom(ids) {
-    const missing = ids.filter((id) => !document.getElementById(id));
-    if (missing.length) {
-      console.warn("Saknade element-ID:", missing);
-      // Visa något begripligt i UI om möjligt
-      const sub = $("#subTitle");
-      if (sub) sub.textContent = `Saknar element i index: ${missing.join(", ")}`;
-      return false;
-    }
-    return true;
-  }
-
   // -----------------------------
-  // 1) Läs EVENTS (oförändrade)
+  // 1) Events
   // -----------------------------
   const RAW = Array.isArray(window.EVENTS) ? window.EVENTS : [];
   if (!RAW.length) {
-    alert(
-      "EVENTS saknas. Kontrollera att events.js ligger i samma mapp och slutar med: window.EVENTS = EVENTS;"
-    );
+    alert("EVENTS saknas. Kontrollera events.js och att den slutar med window.EVENTS = EVENTS;");
   }
 
-  // Normalisera till intern form (men ändrar inte originalobjekten)
   const DATA = RAW.map((e) => {
     const date = e.date || e.time || e.dt || e.datetime || "";
     return {
@@ -88,36 +72,42 @@
   });
 
   // -----------------------------
-  // 2) Flikar + scope
+  // 2) Flikar
   // -----------------------------
   function setTab(which) {
     const g = $("#tabGraph"),
       i = $("#tabIntent"),
       vg = $("#viewGraph"),
       vi = $("#viewIntent");
+
     if (!g || !i || !vg || !vi) return;
+
     g.classList.toggle("active", which === "graph");
     i.classList.toggle("active", which === "intent");
+
     vg.classList.toggle("active", which === "graph");
     vi.classList.toggle("active", which === "intent");
+
+    // När grafen varit dold kan den initas med 0px storlek.
+    if (which === "graph") setTimeout(() => refresh(), 80);
+    if (which === "intent") setTimeout(() => refreshIntentioner(), 80);
   }
 
-  // Scope: delmängd via grafklick (index i aktuell filterlista)
+  // -----------------------------
+  // 3) Scope via grafklick
+  // -----------------------------
   let SCOPE = { type: "all", label: "Alla", idxSet: null };
 
   function setScopeAll() {
     SCOPE = { type: "all", label: "Alla", idxSet: null };
-    const pill = $("#pillScope");
-    if (pill) pill.textContent = `Urval: Alla`;
-    const pillSel = $("#pillSel");
-    if (pillSel) pillSel.textContent = "–";
-    const detail = $("#detail");
-    if (detail) detail.innerHTML = `Klicka en nod i grafen.`;
-    refresh(); // graf + intentioner
+    if ($("#pillScope")) $("#pillScope").textContent = `Urval: Alla`;
+    if ($("#pillSel")) $("#pillSel").textContent = "–";
+    if ($("#detail")) $("#detail").innerHTML = "Klicka en nod i grafen.";
+    refresh();
   }
 
   // -----------------------------
-  // 3) Filter UI
+  // 4) Filter UI
   // -----------------------------
   function fillSelect(sel, arr) {
     if (!sel) return;
@@ -133,7 +123,6 @@
   const cats = ["Alla", ...Array.from(new Set(DATA.map((e) => e._cat).filter(Boolean))).sort()];
   const ctrs = ["Alla", ...Array.from(new Set(DATA.map((e) => e._country).filter(Boolean))).sort()];
 
-  // Date bounds
   const dates = DATA.map((e) => e._dt).filter(Boolean).sort((a, b) => a - b);
   const minDt = dates[0] || null;
   const maxDt = dates[dates.length - 1] || null;
@@ -152,8 +141,8 @@
   }
 
   function updateSliderLabels() {
-    if ($("#limitVal") && $("#limit")) $("#limitVal").textContent = `${$("#limit").value} st`;
-    if ($("#kwMinVal") && $("#kwMin")) $("#kwMinVal").textContent = `${$("#kwMin").value}`;
+    if ($("#limit") && $("#limitVal")) $("#limitVal").textContent = `${$("#limit").value} st`;
+    if ($("#kwMin") && $("#kwMinVal")) $("#kwMinVal").textContent = `${$("#kwMin").value}`;
   }
 
   function applyFilters() {
@@ -169,7 +158,6 @@
     let list = DATA.filter((e) => {
       if (cat !== "Alla" && e._cat !== cat) return false;
       if (country !== "Alla" && e._country !== country) return false;
-
       if (from && e._dt && e._dt < from) return false;
       if (to && e._dt && e._dt > to) return false;
 
@@ -180,17 +168,14 @@
       return true;
     });
 
-    // sort by date desc
     list.sort((a, b) => (b._dt?.getTime() || 0) - (a._dt?.getTime() || 0));
-
-    // cap
     if (list.length > limit) list = list.slice(0, limit);
 
     return list;
   }
 
   // -----------------------------
-  // 4) Nyckelord
+  // 5) Nyckelord
   // -----------------------------
   const STOP = new Set([
     "och","att","som","det","den","en","ett","i","på","av","för","med","till","om","från","under","efter","innan",
@@ -220,27 +205,22 @@
   }
 
   // -----------------------------
-  // 5) Heuristisk härledning (utan att ändra events)
-  //    -> dimension, risknivå, sannolikhet
+  // 6) Intentioner: härledd modell (utan att ändra events)
   // -----------------------------
   const CAT_TO_DIM = {
     HYBRID: "Intentioner",
     POLICY: "Intentioner",
     TERROR: "Intentioner",
-
     INTEL: "Facilitering",
     LEGAL: "Facilitering",
-
     MIL: "Resurser",
     MAR: "Resurser",
     INFRA: "Resurser",
     NUCLEAR: "Resurser",
-
     DRONE: "Tillfälle",
     GPS: "Tillfälle",
   };
 
-  // Basrisk per kategori (1–5)
   const CAT_BASE_RISK = {
     TERROR: 4,
     INFRA: 4,
@@ -255,79 +235,58 @@
     LEGAL: 2,
   };
 
-  // Triggerord som justerar risk (kategorioberoende)
   const RISK_TRIGGERS = [
-    // våld/sabotage/död
     { re: /\b(sabotage|spräng|explos|bomb|attack|skott|död|döds|dead|killed|mörd)\b/i, delta: +1 },
-    // kritisk infra
     { re: /\b(cable|kabel|pipeline|gasledning|substation|kraftnät|power\s?grid|järnväg|rail|bridge|bro|hamn|port|airport|flygplats)\b/i, delta: +1 },
-    // cyber/underrättelse/övervakning
     { re: /\b(spyware|implant|sigint|massövervak|mass\s?tracking|geofence|stingray|cell-site|intercept|wiretap|avlyssn)\b/i, delta: +1 },
-    // “övning/test”
     { re: /\b(test|övning|exercise|drill)\b/i, delta: -1 },
   ];
 
-  // Sannolikhetsvikter enligt din text
-  // Bekräftat (>95%)=0.95; Sannolikt(75-95)=0.85; Troligen(40-75)=0.575; Möjligen(5-40)=0.225; Tveksam(0-5)=0.025
+  // sannolikhetsvikt
   const P = {
-    bekraftat: 0.95,
-    bekräftat: 0.95,
+    bekraftat: 0.95, bekräftat: 0.95,
     sannolikt: 0.85,
     troligen: 0.575,
-    mojligt: 0.225,
-    möjligt: 0.225,
-    möjligen: 0.225,
-    tveksamt: 0.025,
-    tveksam: 0.025,
+    mojligt: 0.225, möjligt: 0.225, möjligen: 0.225,
+    tveksamt: 0.025, tveksam: 0.025,
   };
 
-  // Domänklassning (du kan fylla på om du vill – men detta funkar direkt)
   const DOMAIN_CONF = {
-    // myndigheter / officiellt
     official: [
-      "polisen.se", "regeringen.se", "riksdagen.se", "domstol.se", "forsvarsmakten.se", "sakerhetspolisen.se", "msb.se",
-      ".gov", ".mil", "europa.eu",
+      "polisen.se","regeringen.se","riksdagen.se","domstol.se","forsvarsmakten.se","msb.se","sakerhetspolisen.se",
+      ".gov",".mil","europa.eu"
     ],
-    // etablerade medier
     major: [
       "reuters.com","apnews.com","afp.com","bbc.","ft.com","wsj.com","nytimes.com","theguardian.com",
-      "svt.se","dn.se","sr.se","sydsvenskan.se","gp.se","aftonbladet.se","expressen.se",
-      "politico.","bloomberg.","lemonde.","spiegel.","zeit.de","rfi.fr","france24",
-      "yle.fi","hs.fi","nrk.no","dr.dk","tv2.no",
+      "svt.se","dn.se","sr.se","gp.se","aftonbladet.se","expressen.se",
+      "politico.","bloomberg.","lemonde.","spiegel.","zeit.de",
+      "yle.fi","hs.fi","nrk.no","dr.dk","tv2.no"
     ],
-    // social/aggregator (lägre)
     social: [
       "linkedin.com","x.com","twitter.com","t.me","telegram","facebook.com","instagram.com","youtube.com","tiktok.com",
-      "ground.news","substack.com","medium.com",
+      "ground.news","substack.com","medium.com"
     ],
   };
 
-  // Språksignaler som drar ned säkerhet
-  const UNCERTAIN_CUES = /\b(uppgift|uppgifter|obekräft|rykte|rykten|reportedly|alleged|claim|claims|sources|enligt\s+källor|suspected|possible)\b/i;
-  const CONFIRM_CUES = /\b(bekräft|confirmed|confirm|åtal|dömd|dom|charges|indicted|arrested|gripits|häktad)\b/i;
+  const UNCERTAIN_CUES = /\b(uppgift|uppgifter|obekräft|rykte|reportedly|alleged|claim|claims|sources|enligt\s+källor|suspected|possible)\b/i;
+  const CONFIRM_CUES = /\b(bekräft|confirmed|åtal|dömd|dom|charges|indicted|arrested|gripits|häktad)\b/i;
 
   function classifyLikelihood(e) {
     const url = (e._url || "").toLowerCase();
     const text = `${e._title || ""} ${e._summary || ""} ${e._source || ""}`.toLowerCase();
 
-    // officiellt
     if (DOMAIN_CONF.official.some((d) => (d.startsWith(".") ? url.includes(d) : url.includes(d)))) {
       return "Bekräftat";
     }
-
-    // stora medier
     if (DOMAIN_CONF.major.some((d) => url.includes(d))) {
       if (UNCERTAIN_CUES.test(text)) return "Troligen";
       return "Sannolikt";
     }
-
-    // social/aggregator
     if (DOMAIN_CONF.social.some((d) => url.includes(d))) {
       if (CONFIRM_CUES.test(text)) return "Troligen";
       return "Möjligen";
     }
 
-    // fallback på textsignaler
     if (CONFIRM_CUES.test(text)) return "Sannolikt";
     if (UNCERTAIN_CUES.test(text)) return "Möjligen";
     return "Troligen";
@@ -337,37 +296,17 @@
     let r = CAT_BASE_RISK[e._cat] ?? 3;
     const text = `${e._title || ""} ${e._summary || ""}`;
 
-    for (const t of RISK_TRIGGERS) {
-      if (t.re.test(text)) r += t.delta;
-    }
+    for (const t of RISK_TRIGGERS) if (t.re.test(text)) r += t.delta;
 
-    // kategori-specifika småjusteringar
-    if (e._cat === "POLICY") {
-      if (/\b(sanction|sanktion|förbud|ban|emergency|undantagstillstånd)\b/i.test(text)) r += 1;
-    }
-    if (e._cat === "GPS") {
-      if (/\b(jamming|spoof|störning|spoofing)\b/i.test(text)) r += 1;
-    }
-    if (e._cat === "DRONE") {
-      if (/\b(intrång|intrusion|nedskjuten|shot\s+down|over\s+airport|flygplats)\b/i.test(text)) r += 1;
-    }
+    if (e._cat === "POLICY" && /\b(sanction|sanktion|förbud|ban|emergency|undantagstillstånd)\b/i.test(text)) r += 1;
+    if (e._cat === "GPS" && /\b(jamming|spoof|störning|spoofing)\b/i.test(text)) r += 1;
+    if (e._cat === "DRONE" && /\b(intrång|intrusion|nedskjuten|shot\s+down|over\s+airport|flygplats)\b/i.test(text)) r += 1;
 
     return clamp(r, 1, 5);
   }
 
   function deriveDim(e) {
     return CAT_TO_DIM[e._cat] || "Intentioner";
-  }
-
-  function derive(e) {
-    const dim = deriveDim(e);
-    const risk = deriveRisk(e);
-    const likelihood = classifyLikelihood(e);
-
-    // normalisera nyckel för P
-    const lkKey = normalizeStr(likelihood).replace("ö", "o").replace("ä", "a"); // grov
-    // men vi returnerar label, och gör nyckel senare
-    return { dim, risk, likelihood };
   }
 
   function lkKey(s) {
@@ -377,41 +316,37 @@
       .replace("bekräftat", "bekraftat");
   }
 
-  // -----------------------------
-  // 6) Intentioner-beräkning: Bästa/Troligast/Värsta
-  // -----------------------------
   const DIM_ORDER = ["Intentioner", "Facilitering", "Resurser", "Tillfälle"];
-  const SCEN = ["best", "likely", "worst"];
-
-  // scenarioregler
   const ORDER_LK = ["bekraftat", "sannolikt", "troligen", "mojligt", "tveksamt"];
+
   function scenarioIncludes(scenario, lk) {
     const i = ORDER_LK.indexOf(lk);
     if (i < 0) return false;
-    if (scenario === "best") return i <= 0;      // bara bekräftat
-    if (scenario === "likely") return i <= 1;    // bekräftat+sannolikt
-    if (scenario === "worst") return i <= 4;     // alla
+    if (scenario === "best") return i <= 0;
+    if (scenario === "likely") return i <= 1;
+    if (scenario === "worst") return i <= 4;
     return false;
   }
 
   function computeKapacitet(events) {
-    // per dim per scen: array av viktade riskfaktorer
     const per = {};
     for (const d of DIM_ORDER) per[d] = { best: [], likely: [], worst: [] };
 
     const usable = [];
     for (const e of events) {
-      const d = derive(e);
-      const lk = lkKey(d.likelihood);
+      const dim = deriveDim(e);
+      const risk = deriveRisk(e);
+      const likelihood = classifyLikelihood(e);
+      const lk = lkKey(likelihood);
       const p = P[lk];
       if (!p) continue;
 
-      const wr = d.risk * p; // viktad riskfaktor
-      usable.push({ e, dim: d.dim, lk, wr, risk: d.risk, likelihood: d.likelihood });
+      const wr = risk * p;
+      usable.push({ e, dim, risk, likelihood, lk, wr });
 
-      for (const sc of SCEN) {
-        if (scenarioIncludes(sc, lk)) per[d.dim][sc].push(wr);
-      }
+      if (scenarioIncludes("best", lk)) per[dim].best.push(wr);
+      if (scenarioIncludes("likely", lk)) per[dim].likely.push(wr);
+      if (scenarioIncludes("worst", lk)) per[dim].worst.push(wr);
     }
 
     const stats = (arr) => {
@@ -423,31 +358,21 @@
 
     const out = {};
     for (const d of DIM_ORDER) {
-      out[d] = {
-        best: stats(per[d].best),
-        likely: stats(per[d].likely),
-        worst: stats(per[d].worst),
-      };
+      out[d] = { best: stats(per[d].best), likely: stats(per[d].likely), worst: stats(per[d].worst) };
     }
 
-    // total = medel av dimensionernas mean/max (dimension-wise)
-    function totalFor(sc) {
+    const totalFor = (sc) => {
       const means = DIM_ORDER.map((d) => out[d][sc].mean);
       const maxes = DIM_ORDER.map((d) => out[d][sc].max);
-      const mean = means.reduce((a, b) => a + b, 0) / means.length;
-      const max = maxes.reduce((a, b) => a + b, 0) / maxes.length;
-      return { mean, max };
-    }
-
-    const total = {
-      best: totalFor("best"),
-      likely: totalFor("likely"),
-      worst: totalFor("worst"),
+      return {
+        mean: means.reduce((a, b) => a + b, 0) / means.length,
+        max: maxes.reduce((a, b) => a + b, 0) / maxes.length,
+      };
     };
 
-    // Skala till 0–100 på max 5.0 (risk 5 * 0.95 ≈ 4.75; vi använder 5 som tak för enkel läsbarhet)
-    const toPct = (x) => Math.round((x / 5) * 100);
+    const total = { best: totalFor("best"), likely: totalFor("likely"), worst: totalFor("worst") };
 
+    const toPct = (x) => Math.round((x / 5) * 100);
     const pct = {};
     for (const d of DIM_ORDER) {
       pct[d] = {
@@ -462,19 +387,71 @@
       worst: { mean: toPct(total.worst.mean), max: toPct(total.worst.max) },
     };
 
-    // “score” till KPI: välj Troligast mean i procent som total
-    const scoreLikely = pctTotal.likely.mean;
-
-    return { usable, out, total, pct, pctTotal, scoreLikely };
+    return { usable, pct, pctTotal };
   }
 
-  // Render bars + radar + top-lista
-  function renderIntentioner(res, scopedEvents) {
-    // KPI
-    if ($("#kEvents")) $("#kEvents").textContent = String(scopedEvents.length);
-    if ($("#kScore")) $("#kScore").textContent = `${res.scoreLikely}%`;
+  function renderRadar(pctPerDim) {
+    const el = $("#radar");
+    if (!el || typeof d3 === "undefined") return;
+    const svg = d3.select(el);
+    svg.selectAll("*").remove();
 
-    // Bars: per dimension + total
+    const W = 360, H = 300;
+    const cx = W / 2, cy = 150, r = 110;
+    const axes = DIM_ORDER.length;
+    const angle = (i) => (Math.PI * 2 * i) / axes - Math.PI / 2;
+
+    [0.25, 0.5, 0.75, 1].forEach((rr) => {
+      svg.append("circle")
+        .attr("cx", cx).attr("cy", cy).attr("r", r * rr)
+        .attr("fill", "none")
+        .attr("stroke", "rgba(255,255,255,.10)");
+    });
+
+    DIM_ORDER.forEach((lab, i) => {
+      const a = angle(i);
+      const x = cx + Math.cos(a) * r;
+      const y = cy + Math.sin(a) * r;
+      svg.append("line")
+        .attr("x1", cx).attr("y1", cy).attr("x2", x).attr("y2", y)
+        .attr("stroke", "rgba(255,255,255,.12)");
+
+      svg.append("text")
+        .attr("x", cx + Math.cos(a) * (r + 18))
+        .attr("y", cy + Math.sin(a) * (r + 18))
+        .attr("fill", "rgba(219,231,255,.78)")
+        .attr("font-size", 11)
+        .attr("text-anchor", Math.cos(a) > 0.2 ? "start" : (Math.cos(a) < -0.2 ? "end" : "middle"))
+        .attr("dominant-baseline", "middle")
+        .text(lab);
+    });
+
+    const scenDefs = [
+      { key: "best", fill: "rgba(219,231,255,.08)", stroke: "rgba(219,231,255,.25)" },
+      { key: "likely", fill: "rgba(219,231,255,.16)", stroke: "rgba(219,231,255,.55)" },
+      { key: "worst", fill: "rgba(219,231,255,.10)", stroke: "rgba(219,231,255,.35)" },
+    ];
+
+    scenDefs.forEach((sc) => {
+      const pts = DIM_ORDER.map((d, i) => {
+        const v = clamp((pctPerDim[d]?.[sc.key]?.mean ?? 0) / 100, 0, 1);
+        const a = angle(i);
+        return [cx + Math.cos(a) * r * v, cy + Math.sin(a) * r * v];
+      });
+
+      svg.append("polygon")
+        .attr("points", pts.map((p) => p.join(",")).join(" "))
+        .attr("fill", sc.fill)
+        .attr("stroke", sc.stroke)
+        .attr("stroke-width", 1.2);
+    });
+  }
+
+  function renderIntentioner(res, scopedEvents) {
+    if ($("#kEvents")) $("#kEvents").textContent = String(scopedEvents.length);
+    if ($("#kScore")) $("#kScore").textContent = `${res.pctTotal.likely.mean}%`;
+    if ($("#pillIntent")) $("#pillIntent").textContent = `Urval: ${SCOPE.label} • ${scopedEvents.length} events`;
+
     const host = $("#bars");
     if (host) {
       host.innerHTML = "";
@@ -501,93 +478,27 @@
       mkRow("Total", res.pctTotal);
     }
 
-    // Radar: 3 polygoner (best/likely/worst) på mean-värden
+    // Radar
     renderRadar(res.pct);
 
-    // Top contributors: sortera på wr (viktad risk) och visa 15
-    const top = [...res.usable].sort((a, b) => b.wr - a.wr).slice(0, 15);
+    // Top contributors
     const list = $("#topList");
     if (list) {
       list.innerHTML = "";
+      const top = [...res.usable].sort((a, b) => b.wr - a.wr).slice(0, 15);
       top.forEach((c) => {
         const e = c.e;
         const el = document.createElement("div");
         el.className = "item";
         el.innerHTML = `
           <div class="it">${escapeHtml(e._title || "Event")}</div>
-          <div class="im">${escapeHtml(e._cat || "–")} • ${escapeHtml(e._country || "–")} • ${escapeHtml(fmtDate(e._dt) || e.date || "")} •
-            dim: <b>${escapeHtml(c.dim)}</b> • risk: <b>${c.risk}</b> • ${escapeHtml(c.likelihood)} • +${c.wr.toFixed(2)}
+          <div class="im">${escapeHtml(e._cat || "–")} • ${escapeHtml(e._country || "–")} • ${escapeHtml(fmtDate(e._dt) || e.date || "")} • dim: <b>${escapeHtml(c.dim)}</b> • risk: <b>${c.risk}</b> • ${escapeHtml(c.likelihood)} • +${c.wr.toFixed(2)}
           </div>
           ${e._url ? `<a href="${encodeURI(e._url)}" target="_blank" rel="noopener">Källa</a>` : ""}
         `;
         list.appendChild(el);
       });
     }
-
-    // pill
-    if ($("#pillIntent")) {
-      $("#pillIntent").textContent = `Urval: ${SCOPE.label} • ${scopedEvents.length} events`;
-    }
-  }
-
-  function renderRadar(pctPerDim) {
-    const svgEl = $("#radar");
-    if (!svgEl || typeof d3 === "undefined") return;
-
-    const svg = d3.select(svgEl);
-    svg.selectAll("*").remove();
-
-    const W = 360, H = 300;
-    const cx = W / 2, cy = 150, r = 110;
-
-    const axes = DIM_ORDER.length;
-    const angle = (i) => (Math.PI * 2 * i) / axes - Math.PI / 2;
-
-    // rings
-    [0.25, 0.5, 0.75, 1].forEach((rr) => {
-      svg.append("circle")
-        .attr("cx", cx).attr("cy", cy).attr("r", r * rr)
-        .attr("fill", "none").attr("stroke", "rgba(255,255,255,.10)");
-    });
-
-    // axes + labels
-    DIM_ORDER.forEach((lab, i) => {
-      const a = angle(i);
-      const x = cx + Math.cos(a) * r;
-      const y = cy + Math.sin(a) * r;
-      svg.append("line")
-        .attr("x1", cx).attr("y1", cy).attr("x2", x).attr("y2", y)
-        .attr("stroke", "rgba(255,255,255,.12)");
-
-      svg.append("text")
-        .attr("x", cx + Math.cos(a) * (r + 18))
-        .attr("y", cy + Math.sin(a) * (r + 18))
-        .attr("fill", "rgba(219,231,255,.78)")
-        .attr("font-size", 11)
-        .attr("text-anchor", Math.cos(a) > 0.2 ? "start" : (Math.cos(a) < -0.2 ? "end" : "middle"))
-        .attr("dominant-baseline", "middle")
-        .text(lab);
-    });
-
-    const scenDefs = [
-      { key: "best", label: "Bästa", fill: "rgba(219,231,255,.08)", stroke: "rgba(219,231,255,.25)" },
-      { key: "likely", label: "Troligast", fill: "rgba(219,231,255,.16)", stroke: "rgba(219,231,255,.55)" },
-      { key: "worst", label: "Värsta", fill: "rgba(219,231,255,.10)", stroke: "rgba(219,231,255,.35)" },
-    ];
-
-    scenDefs.forEach((sc) => {
-      const pts = DIM_ORDER.map((d, i) => {
-        const v = clamp((pctPerDim[d]?.[sc.key]?.mean ?? 0) / 100, 0, 1);
-        const a = angle(i);
-        return [cx + Math.cos(a) * r * v, cy + Math.sin(a) * r * v];
-      });
-
-      svg.append("polygon")
-        .attr("points", pts.map((p) => p.join(",")).join(" "))
-        .attr("fill", sc.fill)
-        .attr("stroke", sc.stroke)
-        .attr("stroke-width", 1.2);
-    });
   }
 
   // -----------------------------
@@ -606,7 +517,6 @@
 
   function buildGraph(events) {
     const kwMin = Number($("#kwMin")?.value || 3);
-
     const counts = keywordCounts(events);
     const kw = Array.from(counts.entries())
       .filter(([, v]) => v >= kwMin)
@@ -627,7 +537,6 @@
       return n;
     };
 
-    // cat/country/kw nodes
     Array.from(new Set(events.map((e) => e._cat).filter(Boolean))).forEach((c) =>
       add(`cat:${c}`, { type: "cat", label: c })
     );
@@ -636,7 +545,6 @@
     );
     kwSet.forEach((w) => add(`kw:${w}`, { type: "kw", label: w }));
 
-    // event nodes + links
     events.forEach((e, idx) => {
       const eid = `ev:${idx}`;
       add(eid, { type: "event", label: e._title || "Event", ev: e, evIdx: idx });
@@ -647,11 +555,9 @@
       const toks = Array.from(
         new Set(tokenize(`${e._title} ${e._summary} ${e._source}`).filter((w) => kwSet.has(w)))
       ).slice(0, 8);
-
       toks.forEach((w) => links.push({ source: eid, target: `kw:${w}` }));
     });
 
-    // degrees
     links.forEach((l) => {
       const a = byId.get(l.source);
       const b = byId.get(l.target);
@@ -659,13 +565,7 @@
       if (b) b.degree++;
     });
 
-    // prune isolated non-event
-    const keep = new Set(nodes.filter((n) => n.type === "event" || n.degree > 0).map((n) => n.id));
-    const nodes2 = nodes.filter((n) => keep.has(n.id));
-    const keep2 = new Set(nodes2.map((n) => n.id));
-    const links2 = links.filter((l) => keep2.has(l.source) && keep2.has(l.target));
-
-    return { nodes: nodes2, links: links2 };
+    return { nodes, links };
   }
 
   function initGraph() {
@@ -673,12 +573,17 @@
     if (!host) return;
 
     host.innerHTML = "";
+
     const w = host.clientWidth || 900;
     const h = host.clientHeight || 600;
 
     svg = d3.select(host).append("svg").attr("width", w).attr("height", h);
 
-    const zoom = d3.zoom().scaleExtent([0.12, 4]).on("zoom", (ev) => gRoot.attr("transform", ev.transform));
+    const zoom = d3
+      .zoom()
+      .scaleExtent([0.12, 4])
+      .on("zoom", (ev) => gRoot.attr("transform", ev.transform));
+
     svg.call(zoom);
 
     gRoot = svg.append("g");
@@ -686,7 +591,6 @@
     gRoot.append("g").attr("class", "nodes");
     gRoot.append("g").attr("class", "labels");
 
-    // resize
     const ro = new ResizeObserver(() => {
       const ww = host.clientWidth || 900;
       const hh = host.clientHeight || 600;
@@ -698,13 +602,11 @@
     });
     ro.observe(host);
 
-    // zoom fit btn
     on($("#btnZoomFit"), "click", () => zoomToFit(zoom));
   }
 
-  function zoomToFit(zoom, pad = 0.15) {
+  function zoomToFit(zoom) {
     if (!svg || !current.nodes.length) return;
-
     const host = $("#graph");
     const w = host?.clientWidth || 900;
     const h = host?.clientHeight || 600;
@@ -739,20 +641,18 @@
     const nodeG = gRoot.select("g.nodes");
     const labelG = gRoot.select("g.labels");
 
-    // links
-    const linkSel = linkG.selectAll("line").data(current.links, (d) => `${d.source}->${d.target}`);
-    linkSel.exit().remove();
-    linkSel.enter()
+    const links = linkG.selectAll("line").data(current.links);
+    links.exit().remove();
+    links.enter()
       .append("line")
       .attr("stroke", "rgba(255,255,255,.14)")
       .attr("stroke-width", 1)
       .attr("stroke-opacity", 0.55);
 
-    // nodes
-    const nodeSel = nodeG.selectAll("circle").data(current.nodes, (d) => d.id);
-    nodeSel.exit().remove();
+    const nodes = nodeG.selectAll("circle").data(current.nodes, (d) => d.id);
+    nodes.exit().remove();
 
-    const nodeEnter = nodeSel.enter()
+    nodes.enter()
       .append("circle")
       .attr("r", (d) => nodeRadius(d))
       .attr("fill", "rgba(255,255,255,.06)")
@@ -774,7 +674,6 @@
       )
       .on("click", (_, d) => onNodeClick(d));
 
-    // labels (non-event + top events)
     const topEvents = current.nodes
       .filter((n) => n.type === "event")
       .sort((a, b) => (b.degree || 0) - (a.degree || 0))
@@ -782,16 +681,15 @@
       .map((n) => n.id);
 
     const labelNodes = current.nodes.filter((n) => n.type !== "event" || topEvents.includes(n.id));
-    const labelSel = labelG.selectAll("text").data(labelNodes, (d) => d.id);
-    labelSel.exit().remove();
-    labelSel.enter()
+    const labels = labelG.selectAll("text").data(labelNodes, (d) => d.id);
+    labels.exit().remove();
+    labels.enter()
       .append("text")
       .text((d) => d.label)
       .attr("font-size", (d) => (d.type === "event" ? 10 : 11))
       .attr("fill", "rgba(219,231,255,.75)")
       .attr("pointer-events", "none");
 
-    // simulation
     const host = $("#graph");
     const w = host?.clientWidth || 900;
     const h = host?.clientHeight || 600;
@@ -822,21 +720,20 @@
 
     if (n.type === "event") {
       const e = n.ev;
-      const d = derive(e);
+      const dim = deriveDim(e);
+      const risk = deriveRisk(e);
+      const likelihood = classifyLikelihood(e);
 
       if ($("#detail")) {
         $("#detail").innerHTML = `
           <b>${escapeHtml(e._title || "Event")}</b><br>
           <span style="color:var(--muted)">${escapeHtml(e._cat || "–")} • ${escapeHtml(e._country || "–")} • ${escapeHtml(fmtDate(e._dt) || e.date || "")}</span><br>
-          <span style="color:var(--muted)">dim: <b>${escapeHtml(d.dim)}</b> • risk: <b>${d.risk}</b> • ${escapeHtml(d.likelihood)}</span><br>
+          <span style="color:var(--muted)">dim: <b>${escapeHtml(dim)}</b> • risk: <b>${risk}</b> • ${escapeHtml(likelihood)}</span><br>
           <span>${escapeHtml((e._summary || "").slice(0, 340))}${(e._summary || "").length > 340 ? "…" : ""}</span><br>
           ${e._url ? `<a href="${encodeURI(e._url)}" target="_blank" rel="noopener">Öppna källa</a>` : ""}`;
       }
-
-      // scope = enbart det eventet (index i aktuell filterlista)
       SCOPE = { type: "event", label: e._title || "Event", idxSet: new Set([n.evIdx]) };
     } else {
-      // scope = events som är länkade till noden
       const id = n.id;
       const evIds = new Set(
         current.links
@@ -859,21 +756,18 @@
     }
 
     if ($("#pillScope")) $("#pillScope").textContent = `Urval: ${SCOPE.label}`;
-    refreshIntentioner(); // uppdatera direkt
+    refreshIntentioner();
   }
 
   // -----------------------------
-  // 8) Refresh: graf + intentioner
+  // 8) Refresh
   // -----------------------------
   function refreshIntentioner() {
-    // bas = filterlistan som grafen byggs på
     const base = current.events || [];
     let scoped = base;
-
     if (SCOPE.idxSet && SCOPE.idxSet.size) {
       scoped = base.filter((_, idx) => SCOPE.idxSet.has(idx));
     }
-
     const res = computeKapacitet(scoped);
     renderIntentioner(res, scoped);
   }
@@ -885,7 +779,7 @@
     if ($("#subTitle")) $("#subTitle").textContent = `${DATA.length} events totalt`;
     if ($("#pillCount")) $("#pillCount").textContent = `${list.length} i filter`;
 
-    // Om scope finns: behåll bara index som fortfarande finns
+    // justera scope om filterlistan blivit kortare
     if (SCOPE.idxSet && SCOPE.idxSet.size) {
       const still = new Set();
       for (const i of SCOPE.idxSet) if (i >= 0 && i < list.length) still.add(i);
@@ -901,16 +795,28 @@
   }
 
   // -----------------------------
-  // 9) Fullscreen + reset + listeners
+  // 9) Fullscreen (riktig)
   // -----------------------------
-  function setFullscreen(on) {
-    document.documentElement.classList.toggle("fullscreen", on);
-    const b = $("#btnFullscreen");
-    if (b) b.textContent = on ? "Avsluta helskärm" : "Helskärm (graf)";
-    setTab("graph");
-    setTimeout(() => refresh(), 80);
+  function isFullscreen() {
+    return !!document.fullscreenElement;
   }
 
+  async function toggleGraphFullscreen() {
+    const wrap = document.getElementById("graphWrap");
+    if (!wrap) return;
+
+    try {
+      if (!isFullscreen()) await wrap.requestFullscreen();
+      else await document.exitFullscreen();
+    } catch (e) {
+      console.warn("Fullscreen misslyckades:", e);
+    }
+    setTimeout(() => refresh(), 120);
+  }
+
+  // -----------------------------
+  // 10) Init listeners
+  // -----------------------------
   function initListeners() {
     on($("#tabGraph"), "click", () => setTab("graph"));
     on($("#tabIntent"), "click", () => setTab("intent"));
@@ -939,41 +845,23 @@
 
     on($("#btnClearScope"), "click", setScopeAll);
 
-    on($("#btnFullscreen"), "click", () => {
-      const onFs = !document.documentElement.classList.contains("fullscreen");
-      setFullscreen(onFs);
-    });
-
-    window.addEventListener("keydown", (e) => {
-      if (e.key === "Escape" && document.documentElement.classList.contains("fullscreen")) {
-        setFullscreen(false);
-      }
+    on($("#btnFullscreen"), "click", toggleGraphFullscreen);
+    document.addEventListener("fullscreenchange", () => {
+      const b = $("#btnFullscreen");
+      if (b) b.textContent = isFullscreen() ? "Avsluta helskärm" : "Helskärm (graf)";
+      setTimeout(() => refresh(), 120);
     });
   }
 
   // -----------------------------
-  // 10) Init
+  // 11) Boot
   // -----------------------------
   document.addEventListener("DOMContentLoaded", () => {
-    const ok = assertDom([
-      "tabGraph","tabIntent","viewGraph","viewIntent",
-      "graph","btnFullscreen","btnReset","btnZoomFit","btnClearScope",
-      "pillScope","pillCount","subTitle","hudInfo","pillSel","detail",
-      "q","dFrom","dTo","cat","country","limit","limitVal","kwMin","kwMinVal",
-      "pillIntent","kEvents","kScore","bars","radar","topList"
-    ]);
-
-    // Om index inte matchar – kör ändå graf om möjligt
     initFilters();
     initListeners();
     setTab("graph");
-
-    // Om sidan inte har alla intentioner-ID:n kommer graf ändå funka.
+    setScopeAll();
     refresh();
-
-    if (!ok) {
-      // inget mer: användaren ser vilka ID som saknas i subTitle/console
-    }
   });
 
 })();
