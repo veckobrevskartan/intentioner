@@ -13,7 +13,7 @@
       <div class="dot"></div>
       <div>
         <div class="title">EVENTS → INTENTIONER</div>
-        <div class="subtitle">Analys av EVENTS (veckobrevskartan) + kapacitetsmodell (Intentioner/Facilitering/Resurser/Tillfälle)</div>
+        <div class="subtitle">Analys av EVENTS + kapacitetsmodell (Intentioner/Facilitering/Resurser/Tillfälle)</div>
       </div>
     </div>
 
@@ -91,7 +91,6 @@
 
           <div class="hint">
             <b>Tips:</b> Lägg dina EVENTS i <code>events.js</code> som <code>const EVENTS = [...]</code>.
-            Om du inte vill ha server/fetch så är detta mest robust på GitHub Pages.
           </div>
         </div>
       </div>
@@ -133,7 +132,7 @@
         </div>
 
         <div class="smallmuted">
-          Beräkning: varje event → (risk 1–5) × trolighetsvikt. Dimension bestäms av kategori via mappning (kan justeras i <code>app.js</code>).
+          Beräkning: varje event → (risk 1–5) × trolighetsvikt. Dimension bestäms av kategori via mappning i <code>app.js</code>.
         </div>
       </div>
 
@@ -182,8 +181,8 @@
   </main>
 
   <footer class="footer">
-    <div>Statisk GitHub Pages. Ingen fetch för data krävs om du använder <code>events.js</code>.</div>
-    <div>Exportera intentioner-JSON för att använda i din tidigare “Intentioner”-sida om du vill separera vyer.</div>
+    <div>Statisk GitHub Pages. Ingen fetch behövs om du använder <code>events.js</code>.</div>
+    <div>Exportera intentioner-JSON om du vill återanvända i annan vy.</div>
   </footer>
 
   <script src="events.js"></script>
