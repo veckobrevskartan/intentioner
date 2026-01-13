@@ -237,4 +237,765 @@
       <div class="sub" id="subTitle">Laddar…</div>
     </div>
     <div class="actions">
-      <button class="btn secondary" id="btnReset">Åte
+      <button class="btn secondary" id="btnReset">Återställ vy</button>
+      <button class="btn" id="btnCenter">Centrera</button>
+      <button class="btn ok" id="btnFullscreen">Helskärm (graf)</button>
+      <button class="btn secondary" id="btnExport">Exportera filtrerad JSON</button>
+    </div>
+  </header>
+
+  <main>
+    <section class="leftCol">
+      <div class="card">
+        <div class="head">
+          <h2>Filter & styrning</h2>
+          <div class="pill" id="pillCount">–</div>
+        </div>
+        <div class="body">
+          <label>Sök (titel/summary/källa)</label>
+          <input type="text" id="q" placeholder="t.ex. cable, sabotage, drone…" />
+
+          <div class="row">
+            <div>
+              <label>Från datum</label>
+              <input type="date" id="dFrom" />
+            </div>
+            <div>
+              <label>Till datum</label>
+              <input type="date" id="dTo" />
+            </div>
+          </div>
+
+          <div class="row">
+            <div>
+              <label>Kategori</label>
+              <select id="cat"></select>
+            </div>
+            <div>
+              <label>Land</label>
+              <select id="country"></select>
+            </div>
+          </div>
+
+          <label>Max antal events i grafen</label>
+          <input type="range" id="limit" min="50" max="1200" step="50" />
+          <div class="small"><span id="limitVal">–</span></div>
+
+          <label>Nyckelord: min förekomst</label>
+          <input type="range" id="kwMin" min="2" max="20" step="1" />
+          <div class="small"><span id="kwMinVal">–</span></div>
+
+          <label>Force-styrka (layout)</label>
+          <input type="range" id="force" min="1" max="100" step="1" />
+          <div class="small"><span id="forceVal">–</span></div>
+
+          <div class="legend">
+            <span class="chip">Event</span>
+            <span class="chip">Kategori</span>
+            <span class="chip">Land</span>
+            <span class="chip">Nyckelord</span>
+          </div>
+
+          <div class="kpis">
+            <div class="kpi">
+              <div class="v" id="kEvents">–</div>
+              <div class="t">Events i urval</div>
+            </div>
+            <div class="kpi">
+              <div class="v" id="kLinks">–</div>
+              <div class="t">Länkar i graf</div>
+            </div>
+            <div class="kpi">
+              <div class="v" id="kNodes">–</div>
+              <div class="t">Noder i graf</div>
+            </div>
+            <div class="kpi">
+              <div class="v" id="kSpan">–</div>
+              <div class="t">Tidsintervall</div>
+            </div>
+          </div>
+
+          <div class="small">
+            Tips: om grafen är tom – kontrollera att <b>events.js</b> ligger i samma mapp som denna sida och att filnamnet matchar exakt (skiftläge spelar roll på GitHub Pages).
+          </div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:12px;">
+        <div class="head">
+          <h2>Detalj</h2>
+          <div class="pill" id="pillSel">–</div>
+        </div>
+        <div class="body">
+          <div id="detailEmpty" class="small">Klicka en nod i grafen för att se detaljer.</div>
+          <div id="detail" class="detail" style="display:none;"></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="rightCol">
+      <div class="card graphCard">
+        <div class="head">
+          <h2>Länkdiagram</h2>
+          <div class="pill" id="pillMode">Event ↔ Kategori ↔ Land + Nyckelord</div>
+        </div>
+        <div class="body" style="padding:0;">
+          <div class="graphWrap" id="graphWrap">
+            <div class="graphHud">
+              <span class="pill" id="hudInfo">–</span>
+              <button class="btn secondary" id="btnZoomFit">Zooma till urval</button>
+              <button class="btn secondary" id="btnPause">Pausa</button>
+            </div>
+            <div id="graph"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <div class="toast" id="toast"></div>
+
+  <!-- 1) Viktigt: ladda events.js som klassiskt script (INTE module) -->
+  <script src="./events.js"></script>
+
+  <!-- 2) App -->
+  <script>
+    // ---------- helpers ----------
+    const $ = (s)=>document.querySelector(s);
+
+    function toast(msg){
+      const t=$('#toast');
+      t.innerHTML = msg;
+      t.style.display='block';
+      clearTimeout(toast._tm);
+      toast._tm=setTimeout(()=>t.style.display='none', 2800);
+    }
+
+    function normalizeStr(s){
+      return (s||'').toString().toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g,'');
+    }
+
+    function parseDate(d){
+      if(!d) return null;
+      // supports "YYYY-MM-DD" and variants
+      const m = String(d).match(/^(\d{4})-(\d{2})-(\d{2})/);
+      if(!m) return null;
+      const dt = new Date(Number(m[1]), Number(m[2])-1, Number(m[3]));
+      return isNaN(dt.getTime()) ? null : dt;
+    }
+
+    function fmtDate(dt){
+      if(!dt) return '–';
+      const y=dt.getFullYear();
+      const m=String(dt.getMonth()+1).padStart(2,'0');
+      const d=String(dt.getDate()).padStart(2,'0');
+      return `${y}-${m}-${d}`;
+    }
+
+    function safeArr(x){ return Array.isArray(x) ? x : []; }
+
+    // ---------- validate EVENTS ----------
+    // In classic scripts, top-level const is global binding (accessible here).
+    // If events.js is missing or loaded as module elsewhere, this will be undefined.
+    if(typeof EVENTS === 'undefined'){
+      // Gör felet tydligt utan att sidan kraschar
+      $('#subTitle').textContent = 'Hittar inte EVENTS';
+      toast('<b>EVENTS saknas.</b> Lägg <b>events.js</b> i samma mapp som <b>index.html</b> och se till att filen innehåller <code>const EVENTS = [...]</code>.');
+    }
+
+    const RAW = (typeof EVENTS !== 'undefined') ? safeArr(EVENTS) : [];
+    const DATA = RAW.map(e=>{
+      const date = e.date || e.time || e.dt || e.datetime || '';
+      return {
+        ...e,
+        date,
+        _dt: parseDate(date),
+        _cat: (e.cat || e.category || '').toString().trim(),
+        _country: (e.country || e.land || '').toString().trim(),
+        _title: (e.title || e.name || '').toString(),
+        _summary: (e.summary || e.desc || e.description || '').toString(),
+        _source: (e.source || '').toString(),
+        _url: (e.url || e.link || '').toString()
+      };
+    }).filter(e=>e._title || e._summary || e._url);
+
+    // ---------- build filter options ----------
+    const allCats = ['Alla', ...Array.from(new Set(DATA.map(e=>e._cat).filter(Boolean))).sort()];
+    const allCountries = ['Alla', ...Array.from(new Set(DATA.map(e=>e._country).filter(Boolean))).sort()];
+
+    function fillSelect(sel, arr){
+      sel.innerHTML = '';
+      arr.forEach(v=>{
+        const o=document.createElement('option');
+        o.value=v; o.textContent=v;
+        sel.appendChild(o);
+      });
+    }
+
+    fillSelect($('#cat'), allCats);
+    fillSelect($('#country'), allCountries);
+
+    // default dates from min/max
+    const dates = DATA.map(e=>e._dt).filter(Boolean).sort((a,b)=>a-b);
+    const minDt = dates[0] || null;
+    const maxDt = dates[dates.length-1] || null;
+    if(minDt) $('#dFrom').value = fmtDate(minDt);
+    if(maxDt) $('#dTo').value = fmtDate(maxDt);
+
+    // sliders default
+    $('#limit').value = String(Math.min(600, Math.max(200, DATA.length)));
+    $('#kwMin').value = '3';
+    $('#force').value = '55';
+
+    function updateSliderLabels(){
+      $('#limitVal').textContent = `${$('#limit').value} st`;
+      $('#kwMinVal').textContent = `${$('#kwMin').value}`;
+      $('#forceVal').textContent = `${$('#force').value}`;
+    }
+    updateSliderLabels();
+
+    // ---------- keyword extraction ----------
+    const STOP = new Set([
+      'och','att','som','det','den','en','ett','i','på','av','för','med','till','om','från','under','efter','innan',
+      'the','a','an','and','or','of','to','in','on','for','with','from','at','by','as','is','are','was','were','be',
+      'har','ha','hade','får','fick','kan','kunde','ska','skulle','säger','uppger','enligt','mot','vid','nu','där','då',
+      'sverige','sweden','norge','norway','danmark','denmark','finland','finland','tyskland','germany','frankrike','france',
+      'uk','usa','eu'
+    ]);
+
+    function tokenize(text){
+      const t = normalizeStr(text)
+        .replace(/https?:\/\/\S+/g,' ')
+        .replace(/[^\p{L}\p{N}]+/gu,' ')
+        .trim();
+      if(!t) return [];
+      const parts = t.split(/\s+/g).filter(Boolean);
+      return parts
+        .map(w=>w.replace(/^\d+$/,''))
+        .filter(w=>w && w.length>=4 && !STOP.has(w));
+    }
+
+    function buildKeywordCounts(events){
+      const c = new Map();
+      events.forEach(e=>{
+        const toks = tokenize(`${e._title} ${e._summary} ${e._source}`);
+        toks.forEach(w=> c.set(w, (c.get(w)||0)+1));
+      });
+      return c;
+    }
+
+    // ---------- filtering ----------
+    function applyFilters(){
+      const q = normalizeStr($('#q').value);
+      const cat = $('#cat').value;
+      const country = $('#country').value;
+      const from = parseDate($('#dFrom').value);
+      const to = parseDate($('#dTo').value);
+      const limit = Number($('#limit').value);
+
+      let list = DATA.filter(e=>{
+        if(cat !== 'Alla' && e._cat !== cat) return false;
+        if(country !== 'Alla' && e._country !== country) return false;
+
+        if(from && e._dt && e._dt < from) return false;
+        if(to && e._dt && e._dt > to) return false;
+
+        if(q){
+          const hay = normalizeStr(`${e._title} ${e._summary} ${e._source} ${e._country} ${e._cat}`);
+          if(!hay.includes(q)) return false;
+        }
+        return true;
+      });
+
+      // sort by date desc if possible
+      list.sort((a,b)=>{
+        const ad=a._dt ? a._dt.getTime() : 0;
+        const bd=b._dt ? b._dt.getTime() : 0;
+        return bd-ad;
+      });
+
+      // cap
+      if(list.length > limit) list = list.slice(0, limit);
+
+      return list;
+    }
+
+    // ---------- graph construction ----------
+    let svg, gRoot, sim, linkSel, nodeSel, labelSel;
+    let current = { nodes:[], links:[], events:[] };
+    let paused = false;
+
+    function typeColor(t){
+      // inga hårdkodade färger? vi använder ändå nyanser i UI – men här behövs en minimal typmarkör
+      // Vi använder stroke-opacity och storlek som primär signal.
+      switch(t){
+        case 'event': return 'rgba(219,231,255,.9)';
+        case 'cat': return 'rgba(152,167,194,.95)';
+        case 'country': return 'rgba(152,167,194,.95)';
+        case 'kw': return 'rgba(152,167,194,.95)';
+        default: return 'rgba(219,231,255,.9)';
+      }
+    }
+
+    function nodeRadius(n){
+      if(n.type==='event') return 6 + Math.min(10, (n.degree||0));
+      if(n.type==='cat') return 10 + Math.min(14, (n.degree||0));
+      if(n.type==='country') return 10 + Math.min(14, (n.degree||0));
+      if(n.type==='kw') return 8 + Math.min(12, (n.degree||0));
+      return 8;
+    }
+
+    function buildGraph(events){
+      // nodes:
+      // - event nodes: id = ev:<idx>
+      // - category nodes: cat:<name>
+      // - country nodes: ctry:<code>
+      // - keyword nodes: kw:<word>
+      const kwMin = Number($('#kwMin').value);
+
+      const kwCounts = buildKeywordCounts(events);
+      const topKeywords = Array.from(kwCounts.entries())
+        .filter(([,v])=>v>=kwMin)
+        .sort((a,b)=>b[1]-a[1])
+        .slice(0, 120); // cap keywords
+
+      const kwSet = new Set(topKeywords.map(([k])=>k));
+
+      const nodes = [];
+      const links = [];
+      const nodeById = new Map();
+
+      function addNode(id, obj){
+        if(nodeById.has(id)) return nodeById.get(id);
+        const n = { id, ...obj, degree:0 };
+        nodeById.set(id, n);
+        nodes.push(n);
+        return n;
+      }
+
+      // add cat/country upfront to stabilize layout a bit
+      const catsIn = Array.from(new Set(events.map(e=>e._cat).filter(Boolean))).sort();
+      const ctryIn = Array.from(new Set(events.map(e=>e._country).filter(Boolean))).sort();
+
+      catsIn.forEach(c=> addNode(`cat:${c}`, { type:'cat', name:c, label:c }));
+      ctryIn.forEach(c=> addNode(`ctry:${c}`, { type:'country', name:c, label:c }));
+
+      kwSet.forEach(w=> addNode(`kw:${w}`, { type:'kw', name:w, label:w }));
+
+      // events and links
+      events.forEach((e, idx)=>{
+        const eid = `ev:${idx}`;
+        addNode(eid, {
+          type:'event',
+          label: e._title || 'Event',
+          ev: e
+        });
+
+        if(e._cat){
+          links.push({ source: eid, target:`cat:${e._cat}`, kind:'cat' });
+        }
+        if(e._country){
+          links.push({ source: eid, target:`ctry:${e._country}`, kind:'country' });
+        }
+
+        // keywords
+        const toks = tokenize(`${e._title} ${e._summary} ${e._source}`);
+        const uniq = Array.from(new Set(toks.filter(w=>kwSet.has(w)))).slice(0, 8); // cap per event
+        uniq.forEach(w=>{
+          links.push({ source: eid, target:`kw:${w}`, kind:'kw' });
+        });
+      });
+
+      // compute degrees
+      links.forEach(l=>{
+        const a = nodeById.get(l.source);
+        const b = nodeById.get(l.target);
+        if(a) a.degree++;
+        if(b) b.degree++;
+      });
+
+      // prune isolated non-event nodes
+      const keep = new Set(nodes.filter(n=>n.type==='event' || n.degree>0).map(n=>n.id));
+      const nodes2 = nodes.filter(n=>keep.has(n.id));
+      const keep2 = new Set(nodes2.map(n=>n.id));
+      const links2 = links.filter(l=>keep2.has(l.source) && keep2.has(l.target));
+
+      return { nodes:nodes2, links:links2 };
+    }
+
+    function initGraph(){
+      const host = document.getElementById('graph');
+      host.innerHTML = '';
+      const w = host.clientWidth || 800;
+      const h = host.clientHeight || 600;
+
+      svg = d3.select(host).append('svg')
+        .attr('width', w)
+        .attr('height', h);
+
+      // zoom/pan
+      const zoom = d3.zoom().scaleExtent([0.12, 4]).on('zoom', (ev)=>{
+        gRoot.attr('transform', ev.transform);
+      });
+      svg.call(zoom);
+
+      gRoot = svg.append('g');
+
+      // layers
+      gRoot.append('g').attr('class','links');
+      gRoot.append('g').attr('class','nodes');
+      gRoot.append('g').attr('class','labels');
+
+      // resize observer
+      const ro = new ResizeObserver(()=>{
+        const ww = host.clientWidth || 800;
+        const hh = host.clientHeight || 600;
+        svg.attr('width', ww).attr('height', hh);
+        if(sim){
+          sim.force('center', d3.forceCenter(ww/2, hh/2));
+          sim.alpha(0.35).restart();
+        }
+      });
+      ro.observe(host);
+
+      // buttons
+      $('#btnZoomFit').addEventListener('click', ()=>zoomToFit());
+    }
+
+    function renderGraph(model){
+      current.nodes = model.nodes;
+      current.links = model.links;
+
+      const host = document.getElementById('graph');
+      const w = host.clientWidth || 800;
+      const h = host.clientHeight || 600;
+
+      const linkG = gRoot.select('g.links');
+      const nodeG = gRoot.select('g.nodes');
+      const labelG = gRoot.select('g.labels');
+
+      // links
+      linkSel = linkG.selectAll('line').data(current.links, d=>`${d.source}->${d.target}`);
+      linkSel.exit().remove();
+      linkSel = linkSel.enter().append('line')
+        .attr('stroke', 'rgba(255,255,255,.14)')
+        .attr('stroke-width', 1)
+        .attr('stroke-opacity', 0.55)
+        .merge(linkSel);
+
+      // nodes
+      nodeSel = nodeG.selectAll('circle').data(current.nodes, d=>d.id);
+      nodeSel.exit().remove();
+      nodeSel = nodeSel.enter().append('circle')
+        .attr('r', d=>nodeRadius(d))
+        .attr('fill', 'rgba(255,255,255,.06)')
+        .attr('stroke', d=>typeColor(d.type))
+        .attr('stroke-width', d=> d.type==='event' ? 1.2 : 1.0)
+        .attr('cursor','pointer')
+        .call(d3.drag()
+          .on('start', dragStarted)
+          .on('drag', dragged)
+          .on('end', dragEnded)
+        )
+        .on('click', (_,d)=>selectNode(d))
+        .merge(nodeSel);
+
+      // labels (only for non-event nodes + a few top-degree event nodes)
+      const topEvents = current.nodes
+        .filter(n=>n.type==='event')
+        .sort((a,b)=>(b.degree||0)-(a.degree||0))
+        .slice(0, 18)
+        .map(n=>n.id);
+
+      const labelNodes = current.nodes.filter(n=> n.type!=='event' || topEvents.includes(n.id));
+      labelSel = labelG.selectAll('text').data(labelNodes, d=>d.id);
+      labelSel.exit().remove();
+      labelSel = labelSel.enter().append('text')
+        .text(d=>d.label)
+        .attr('font-size', d=> d.type==='event' ? 10 : 11)
+        .attr('fill','rgba(219,231,255,.75)')
+        .attr('pointer-events','none')
+        .merge(labelSel);
+
+      // simulation
+      if(sim) sim.stop();
+
+      const forceLevel = Number($('#force').value);
+      const linkDist = 40 + (100-forceLevel) * 1.2;
+      const charge = -60 - forceLevel * 7;
+
+      sim = d3.forceSimulation(current.nodes)
+        .force('link', d3.forceLink(current.links).id(d=>d.id).distance(linkDist).strength(0.6))
+        .force('charge', d3.forceManyBody().strength(charge))
+        .force('center', d3.forceCenter(w/2, h/2))
+        .force('collide', d3.forceCollide().radius(d=>nodeRadius(d)+3).iterations(2))
+        .on('tick', ticked);
+
+      paused = false;
+      $('#btnPause').textContent = 'Pausa';
+
+      function ticked(){
+        linkSel
+          .attr('x1', d=>d.source.x)
+          .attr('y1', d=>d.source.y)
+          .attr('x2', d=>d.target.x)
+          .attr('y2', d=>d.target.y);
+
+        nodeSel
+          .attr('cx', d=>d.x)
+          .attr('cy', d=>d.y);
+
+        labelSel
+          .attr('x', d=>d.x + 10)
+          .attr('y', d=>d.y + 4);
+      }
+    }
+
+    function dragStarted(event, d){
+      if(!event.active && sim && !paused) sim.alphaTarget(0.25).restart();
+      d.fx = d.x;
+      d.fy = d.y;
+    }
+    function dragged(event, d){
+      d.fx = event.x;
+      d.fy = event.y;
+    }
+    function dragEnded(event, d){
+      if(!event.active && sim && !paused) sim.alphaTarget(0);
+      // låt noden ligga kvar där den släppts (pin), dubbelklick av-pinnar
+    }
+
+    // double-click unpin
+    function enableUnpin(){
+      nodeSel.on('dblclick', (_,d)=>{
+        d.fx = null; d.fy = null;
+        toast('Nod släppt (unpin).');
+        if(sim && !paused) sim.alpha(0.35).restart();
+      });
+    }
+
+    function selectNode(n){
+      $('#detailEmpty').style.display='none';
+      $('#detail').style.display='block';
+      $('#pillSel').textContent = n.type;
+
+      if(n.type === 'event'){
+        const e = n.ev || {};
+        const dt = e._dt ? fmtDate(e._dt) : (e.date||'');
+        const cat = e._cat || '–';
+        const ctry = e._country || '–';
+        const src = e._source ? ` • ${escapeHtml(e._source)}` : '';
+        const url = e._url ? `<div style="margin-top:8px;"><a href="${encodeURI(e._url)}" target="_blank" rel="noopener">Öppna källa</a></div>` : '';
+
+        $('#detail').innerHTML = `
+          <div class="dtitle">${escapeHtml(e._title || 'Event')}</div>
+          <div class="dmeta">${escapeHtml(cat)} • ${escapeHtml(ctry)} • ${escapeHtml(dt)}${src}</div>
+          <div style="font-size:12px;line-height:1.45;color:rgba(219,231,255,.85)">${escapeHtml(e._summary || '')}</div>
+          ${url}
+        `;
+      } else {
+        // show top related events for this node
+        const id = n.id;
+        const related = current.links
+          .filter(l => (l.source.id ? l.source.id : l.source) === id || (l.target.id ? l.target.id : l.target) === id)
+          .map(l => (l.source.id ? l.source.id : l.source) === id ? (l.target.id ? l.target.id : l.target) : (l.source.id ? l.source.id : l.source))
+          .filter(x=> String(x).startsWith('ev:'))
+          .map(evId=>{
+            const evNode = current.nodes.find(nn=>nn.id===evId);
+            return evNode ? evNode.ev : null;
+          })
+          .filter(Boolean)
+          .slice(0, 18);
+
+        $('#detail').innerHTML = `
+          <div class="dtitle">${escapeHtml(n.label || n.name || '')}</div>
+          <div class="dmeta">${related.length} relaterade events (visar upp till 18)</div>
+          <div style="display:flex;flex-direction:column;gap:8px;">
+            ${related.map(e=>{
+              const dt = e._dt ? fmtDate(e._dt) : (e.date||'');
+              const url = e._url ? `<a href="${encodeURI(e._url)}" target="_blank" rel="noopener">Källa</a>` : '';
+              return `<div style="padding:10px;border:1px solid rgba(255,255,255,.07);border-radius:12px;background:rgba(255,255,255,.02)">
+                <div style="font-weight:700;font-size:12px;margin-bottom:4px">${escapeHtml(e._title||'Event')}</div>
+                <div style="font-size:11px;color:var(--muted);margin-bottom:6px">${escapeHtml(e._cat||'–')} • ${escapeHtml(e._country||'–')} • ${escapeHtml(dt)}</div>
+                <div style="font-size:12px;color:rgba(219,231,255,.85);line-height:1.4">${escapeHtml((e._summary||'').slice(0,220))}${(e._summary||'').length>220?'…':''}</div>
+                ${url ? `<div style="margin-top:6px">${url}</div>`:''}
+              </div>`;
+            }).join('')}
+          </div>
+        `;
+      }
+    }
+
+    function escapeHtml(s){
+      return (s||'').toString()
+        .replace(/&/g,'&amp;')
+        .replace(/</g,'&lt;')
+        .replace(/>/g,'&gt;')
+        .replace(/"/g,'&quot;')
+        .replace(/'/g,'&#039;');
+    }
+
+    function zoomToFit(pad=0.15){
+      if(!svg || !current.nodes.length) return;
+      const host = document.getElementById('graph');
+      const w = host.clientWidth || 800;
+      const h = host.clientHeight || 600;
+
+      const xs = current.nodes.map(n=>n.x).filter(Number.isFinite);
+      const ys = current.nodes.map(n=>n.y).filter(Number.isFinite);
+      if(!xs.length || !ys.length) return;
+
+      const minX = Math.min(...xs), maxX=Math.max(...xs);
+      const minY = Math.min(...ys), maxY=Math.max(...ys);
+      const dx = maxX-minX, dy = maxY-minY;
+
+      const cx = (minX+maxX)/2;
+      const cy = (minY+maxY)/2;
+
+      const scale = 0.92 / Math.max(dx / w, dy / h);
+      const s = Math.max(0.12, Math.min(4, scale));
+      const tx = w/2 - s*cx;
+      const ty = h/2 - s*cy;
+
+      const tr = d3.zoomIdentity.translate(tx,ty).scale(s);
+      svg.transition().duration(450).call(d3.zoom().scaleExtent([0.12,4]).on('zoom', (ev)=>gRoot.attr('transform', ev.transform)).transform, tr);
+    }
+
+    function centerView(){
+      if(!svg) return;
+      const host = document.getElementById('graph');
+      const w = host.clientWidth || 800;
+      const h = host.clientHeight || 600;
+      const tr = d3.zoomIdentity.translate(0,0).scale(1);
+      svg.transition().duration(350).call(d3.zoom().scaleExtent([0.12,4]).on('zoom', (ev)=>gRoot.attr('transform', ev.transform)).transform, tr);
+      if(sim && !paused){
+        sim.force('center', d3.forceCenter(w/2, h/2));
+        sim.alpha(0.4).restart();
+      }
+    }
+
+    // ---------- update cycle ----------
+    function refresh(){
+      updateSliderLabels();
+
+      const list = applyFilters();
+      const span = list.map(e=>e._dt).filter(Boolean).sort((a,b)=>a-b);
+      const spanTxt = span.length ? `${fmtDate(span[0])} → ${fmtDate(span[span.length-1])}` : '–';
+
+      // build graph model
+      const model = buildGraph(list);
+      current.events = list;
+
+      // UI counts
+      $('#kEvents').textContent = String(list.length);
+      $('#kLinks').textContent = String(model.links.length);
+      $('#kNodes').textContent = String(model.nodes.length);
+      $('#kSpan').textContent = spanTxt;
+
+      $('#pillCount').textContent = `${list.length} events`;
+      $('#hudInfo').textContent = `${model.nodes.length} noder • ${model.links.length} länkar`;
+      $('#subTitle').textContent = DATA.length ? `${DATA.length} events totalt` : 'Inga events';
+
+      // render
+      if(!svg) initGraph();
+      renderGraph(model);
+      enableUnpin();
+
+      // zoom fit (mjuk)
+      setTimeout(()=>zoomToFit(), 60);
+    }
+
+    // ---------- events / listeners ----------
+    ['input','change'].forEach(ev=>{
+      $('#q').addEventListener(ev, ()=>refresh());
+      $('#dFrom').addEventListener(ev, ()=>refresh());
+      $('#dTo').addEventListener(ev, ()=>refresh());
+      $('#cat').addEventListener(ev, ()=>refresh());
+      $('#country').addEventListener(ev, ()=>refresh());
+      $('#limit').addEventListener(ev, ()=>refresh());
+      $('#kwMin').addEventListener(ev, ()=>refresh());
+      $('#force').addEventListener(ev, ()=>refresh());
+    });
+
+    $('#btnReset').addEventListener('click', ()=>{
+      $('#q').value='';
+      $('#cat').value='Alla';
+      $('#country').value='Alla';
+      if(minDt) $('#dFrom').value = fmtDate(minDt);
+      if(maxDt) $('#dTo').value = fmtDate(maxDt);
+      $('#limit').value = String(Math.min(600, Math.max(200, DATA.length)));
+      $('#kwMin').value='3';
+      $('#force').value='55';
+      $('#detail').style.display='none';
+      $('#detailEmpty').style.display='block';
+      $('#pillSel').textContent='–';
+      refresh();
+      toast('Återställt.');
+    });
+
+    $('#btnCenter').addEventListener('click', ()=>centerView());
+
+    $('#btnPause').addEventListener('click', ()=>{
+      if(!sim) return;
+      paused = !paused;
+      if(paused){
+        sim.stop();
+        $('#btnPause').textContent = 'Fortsätt';
+        toast('Pausad layout.');
+      }else{
+        sim.alpha(0.35).restart();
+        $('#btnPause').textContent = 'Pausa';
+        toast('Layout igång.');
+      }
+    });
+
+    // Fullscreen (graf)
+    function setFullscreen(on){
+      document.documentElement.classList.toggle('fullscreen', on);
+      $('#btnFullscreen').textContent = on ? 'Avsluta helskärm' : 'Helskärm (graf)';
+      // trigga re-render layout efter storleksbyte
+      setTimeout(()=>refresh(), 80);
+    }
+
+    $('#btnFullscreen').addEventListener('click', ()=>{
+      const on = !document.documentElement.classList.contains('fullscreen');
+      setFullscreen(on);
+    });
+
+    // ESC lämnar "UI-helskärm"
+    window.addEventListener('keydown', (e)=>{
+      if(e.key === 'Escape' && document.documentElement.classList.contains('fullscreen')){
+        setFullscreen(false);
+      }
+    });
+
+    // Export filtrerad JSON
+    $('#btnExport').addEventListener('click', ()=>{
+      const out = current.events.map(e=>{
+        const copy = {...e};
+        // städa interna fält
+        delete copy._dt; delete copy._cat; delete copy._country; delete copy._title;
+        delete copy._summary; delete copy._source; delete copy._url;
+        return copy;
+      });
+      const blob = new Blob([JSON.stringify(out, null, 2)], {type:'application/json'});
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'events_filtered.json';
+      a.click();
+      URL.revokeObjectURL(a.href);
+      toast('Exporterade filtrerad JSON.');
+    });
+
+    // ---------- start ----------
+    // 1) Gör det tydligt om DATA är tomt
+    if(!DATA.length){
+      $('#subTitle').textContent = '0 events';
+      $('#pillCount').textContent = '0 events';
+      toast('<b>Inga events hittades.</b> Kontrollera att <code>events.js</code> laddas och innehåller en array.');
+    } else {
+      refresh();
+    }
+  </script>
+</body>
+</html>
