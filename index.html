@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Intentioner – Graf & Modell</title>
+  <title>Intentioner – graf</title>
 
   <script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
 
@@ -21,9 +21,11 @@
       font-family: ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;
       background: radial-gradient(1200px 800px at 40% 10%, #0e1623 0%, var(--bg) 60%);
       color:var(--txt);
-      font-size:13px; /* mindre */
-      overflow:hidden; /* viktigt så fullscreen/layout blir tajt */
+      font-size:13px;
+      overflow:hidden;
     }
+    a{color:#b8d4ff;text-decoration:none}
+    a:hover{text-decoration:underline}
 
     header{
       position:sticky; top:0; z-index:50;
@@ -36,6 +38,7 @@
     }
     h1{font-size:14px;margin:0}
     .sub{font-size:11px;color:var(--muted)}
+
     .tabs{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
     .tab{
       border:1px solid rgba(255,255,255,.10);
@@ -55,7 +58,6 @@
       padding:6px 10px;border-radius:999px;
       white-space:nowrap;
     }
-    .actions{display:flex;gap:8px;flex-wrap:wrap}
 
     .btn{
       border:1px solid rgba(255,255,255,.10);
@@ -69,30 +71,18 @@
     }
     .btn:hover{background: rgba(255,255,255,.04)}
 
-    /* ===== APP LAYOUT ===== */
     #appShell{
-      height: calc(100vh - 52px); /* header höjd-ish */
-      display:flex;
-      flex-direction:column;
-    }
-
-    /* View container */
-    .view{display:none; height:100%}
-    .view.active{display:block}
-
-    /* ===== GRAF VIEW: vänster panel + grafyta ===== */
-    .grid{
-      height:100%;
+      height: calc(100vh - 52px);
       display:grid;
       grid-template-columns: 360px 1fr;
       gap:10px;
       padding:10px;
       align-items:stretch;
+      min-height:0;
     }
     @media (max-width: 980px){
-      .grid{grid-template-columns:1fr; overflow:auto}
       body{overflow:auto}
-      #appShell{height:auto}
+      #appShell{height:auto; grid-template-columns:1fr}
     }
 
     .card{
@@ -101,7 +91,7 @@
       border-radius: var(--r);
       box-shadow: var(--shadow);
       overflow:hidden;
-      min-height: 0; /* viktigt för scroll */
+      min-height:0;
     }
     .head{
       display:flex;align-items:center;justify-content:space-between;
@@ -123,28 +113,17 @@
       padding:9px 10px;
       outline:none;
     }
-    input, select, textarea { pointer-events:auto; }
-    input[type="range"]{
-      width:100%;
-      touch-action: pan-x;
-      pointer-events:auto;
-    }
+    input[type="range"]{ width:100%; touch-action: pan-x; }
     .row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
     .small{font-size:11px;color:var(--muted);line-height:1.35}
-    a{color:#b8d4ff;text-decoration:none}
-    a:hover{text-decoration:underline}
 
-    /* Grafyta */
-    .graphWrap{
-      position:relative;
-      height:100%;
-      min-height:0;
-    }
-    #graph{
-      width:100%;
-      height:100%;
-      min-height:0;
-    }
+    /* Views */
+    .view{display:none; height:100%; min-height:0}
+    .view.active{display:block}
+
+    /* Graph area */
+    .graphWrap{position:relative;height:100%;min-height:0}
+    #graph{width:100%;height:100%;min-height:0}
     .hud{
       position:absolute; left:12px; top:12px;
       display:flex; gap:8px; flex-wrap:wrap;
@@ -159,34 +138,38 @@
       pointer-events:none;
     }
 
-    /* ===== INTENTIONER VIEW ===== */
+    /* Status dots */
+    .srow{display:flex;gap:8px;align-items:center;margin:6px 0}
+    .dot{width:10px;height:10px;border-radius:50%}
+    .ok{background:var(--ok)} .warn{background:var(--warn)} .bad{background:var(--bad)}
+    .err{
+      margin-top:10px;
+      padding:8px;
+      border-radius:12px;
+      border:1px solid rgba(255,124,124,.35);
+      background: rgba(255,124,124,.10);
+      color:#ffd6d6;
+      white-space:pre-wrap;
+      display:none;
+    }
+
+    /* Intentioner panel (reglage + radar + lista) */
     .intentGrid{
       height:100%;
       display:grid;
       grid-template-columns: 420px 1fr;
       gap:10px;
-      padding:10px;
-      align-items:stretch;
+      padding:0;
+      min-height:0;
     }
     @media (max-width: 980px){ .intentGrid{grid-template-columns:1fr} }
 
-    .kpiRow{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-    .kpi{
-      border:1px solid rgba(255,255,255,.08);
-      background: rgba(0,0,0,.22);
-      border-radius:12px;
-      padding:10px;
-    }
-    .kpi .v{font-size:16px;font-weight:800}
-    .kpi .t{font-size:11px;color:var(--muted)}
     .segRow{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
     .seg{
       border:1px solid rgba(255,255,255,.10);
       background: rgba(255,255,255,.02);
-      padding:7px 10px;
-      border-radius:999px;
-      cursor:pointer;
-      user-select:none;
+      padding:7px 10px;border-radius:999px;
+      cursor:pointer; user-select:none;
       font-size:11px;
     }
     .seg.active{background: rgba(255,255,255,.07)}
@@ -203,9 +186,8 @@
     .track{margin-top:8px;height:10px;border-radius:999px;background: rgba(255,255,255,.06);overflow:hidden}
     .fill{height:100%;background: rgba(219,231,255,.35);width:0%}
 
-    /* Radar */
     #radar{width:100%;height:auto;display:block}
-    .list{margin-top:10px;display:flex;flex-direction:column;gap:8px;max-height:320px;overflow:auto;padding-right:6px}
+    .list{margin-top:10px;display:flex;flex-direction:column;gap:8px;max-height:420px;overflow:auto;padding-right:6px}
     .item{
       border:1px solid rgba(255,255,255,.07);
       background: rgba(255,255,255,.02);
@@ -215,21 +197,16 @@
     .item .it{font-size:12px;font-weight:800;margin-bottom:4px}
     .item .im{font-size:11px;color:var(--muted);line-height:1.35}
 
-    /* ===== FULLSCREEN: gör hela app-shell fullscreen (graf+panel syns) ===== */
-    #appShell:fullscreen{
-      width:100vw; height:100vh;
-      background: radial-gradient(1200px 800px at 40% 10%, #0e1623 0%, var(--bg) 60%);
-    }
-    #appShell:fullscreen header{position:sticky; top:0}
-    #appShell:fullscreen .grid{height: calc(100vh - 52px);}
-    #appShell:fullscreen .intentGrid{height: calc(100vh - 52px);}
+    /* Fullscreen */
+    #appShell:fullscreen{width:100vw;height:100vh}
+    #appShell:fullscreen{grid-template-columns: 360px 1fr;}
   </style>
 </head>
 
 <body>
   <header>
     <div>
-      <h1>Intentioner – graf & modell</h1>
+      <h1>Intentioner – graf</h1>
       <div class="sub" id="subTitle">Laddar…</div>
     </div>
 
@@ -240,172 +217,179 @@
       <span class="pill" id="pillCount">–</span>
     </div>
 
-    <div class="actions">
-      <button class="btn" id="btnFullscreen">Helskärm (allt)</button>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn" id="btnFullscreenGraph">Helskärm (graf)</button>
+      <button class="btn" id="btnFullscreenAll">Helskärm (allt)</button>
       <button class="btn" id="btnReset">Återställ</button>
     </div>
   </header>
 
-  <div id="appShell">
-    <!-- GRAF VIEW -->
-    <div class="view active" id="viewGraph">
-      <div class="grid">
-        <!-- Left panel -->
-        <div class="card">
-          <div class="head"><h2>Filter</h2><span class="pill" id="pillSel">–</span></div>
-          <div class="body scroll">
-            <label>Sök</label>
-            <input id="q" type="text" placeholder="t.ex. sabotage, cable, drone…" autocomplete="off"/>
+  <main id="appShell">
+    <!-- LEFT: Status + Filter -->
+    <section style="display:flex;flex-direction:column;gap:10px;min-height:0">
+      <div class="card">
+        <div class="head"><h2>Status</h2><span class="pill" id="pillSel">–</span></div>
+        <div class="body">
+          <div class="srow"><span class="dot warn" id="dotD3"></span><b>D3</b> <span class="small" id="stD3">kontrollerar…</span></div>
+          <div class="srow"><span class="dot warn" id="dotEvents"></span><b>EVENTS</b> <span class="small" id="stEvents">kontrollerar…</span></div>
+          <div class="srow"><span class="dot warn" id="dotApp"></span><b>App</b> <span class="small" id="stApp">kontrollerar…</span></div>
+          <div class="small" style="margin-top:8px">Om något inte laddas visas feltext nedan.</div>
+          <div class="err" id="statusErrors"></div>
+        </div>
+      </div>
 
-            <div class="row">
-              <div>
-                <label>Från datum</label>
-                <input id="dFrom" type="date" autocomplete="off"/>
-              </div>
-              <div>
-                <label>Till datum</label>
-                <input id="dTo" type="date" autocomplete="off"/>
-              </div>
+      <div class="card" style="flex:1;min-height:0">
+        <div class="head"><h2>Filter</h2><span class="pill" id="pillFilter">–</span></div>
+        <div class="body scroll">
+          <label>Sök</label>
+          <input id="q" type="text" placeholder="t.ex. sabotage, cable, drone…" autocomplete="off"/>
+
+          <div class="row">
+            <div>
+              <label>Från datum</label>
+              <input id="dFrom" type="date" autocomplete="off"/>
             </div>
-
-            <div class="row">
-              <div>
-                <label>Kategori</label>
-                <select id="cat"></select>
-              </div>
-              <div>
-                <label>Land</label>
-                <select id="country"></select>
-              </div>
+            <div>
+              <label>Till datum</label>
+              <input id="dTo" type="date" autocomplete="off"/>
             </div>
+          </div>
 
-            <label>Max events</label>
-            <input id="limit" type="range" min="50" max="2000" step="50"/>
-            <div class="small" id="limitVal">–</div>
-
-            <label>Nyckelord: min förekomst</label>
-            <input id="kwMin" type="range" min="2" max="25" step="1"/>
-            <div class="small" id="kwMinVal">–</div>
-
-            <div class="small" style="margin-top:10px" id="detail">
-              Klicka nod i grafen för att sätta urval (det påverkar intentioner-fliken).
+          <div class="row">
+            <div>
+              <label>Kategori</label>
+              <select id="cat"></select>
             </div>
+            <div>
+              <label>Land</label>
+              <select id="country"></select>
+            </div>
+          </div>
+
+          <label>Max events</label>
+          <input id="limit" type="range" min="50" max="2000" step="50"/>
+          <div class="small" id="limitVal">–</div>
+
+          <label>Nyckelord: min förekomst</label>
+          <input id="kwMin" type="range" min="2" max="25" step="1"/>
+          <div class="small" id="kwMinVal">–</div>
+
+          <div class="small" style="margin-top:10px" id="detail">
+            Klicka nod i grafen för att sätta urval (påverkar intentioner-fliken).
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- RIGHT: Graph/Intent views -->
+    <section class="card" style="min-height:0">
+      <div class="head">
+        <h2 id="rightTitle">Länkdiagram</h2>
+        <span class="pill" id="hudInfo">–</span>
+      </div>
+
+      <div class="body" style="padding:0;height:100%;min-height:0">
+        <!-- GRAPH VIEW -->
+        <div class="view active" id="viewGraph">
+          <div class="graphWrap" id="graphWrap">
+            <div class="hud">
+              <button class="btn" id="btnZoomFit">Zooma till urval</button>
+              <button class="btn" id="btnClearScope">Rensa urval</button>
+            </div>
+            <div class="hint">Dra noder • Zooma (hjul) • Panorera (dra i tom yta)</div>
+            <div id="graph"></div>
           </div>
         </div>
 
-        <!-- Graph -->
-        <div class="card">
-          <div class="head"><h2>Länkdiagram</h2><span class="pill" id="hudInfo">–</span></div>
-          <div class="body" style="padding:0; height:100%;">
-            <div class="graphWrap" id="graphWrap">
-              <div class="hud">
-                <button class="btn" id="btnZoomFit">Zooma till urval</button>
-                <button class="btn" id="btnClearScope">Rensa urval</button>
+        <!-- INTENT VIEW -->
+        <div class="view" id="viewIntent" style="height:100%;min-height:0">
+          <div class="intentGrid" style="height:100%;min-height:0;padding:10px">
+            <!-- Controls -->
+            <div class="card" style="min-height:0">
+              <div class="head"><h2>Bedömning</h2><span class="pill" id="pillIntent">–</span></div>
+              <div class="body scroll">
+                <div class="small">
+                  Auto räknar från kategori → dimension:
+                  HYBRID/POLICY/TERROR → Intentioner,
+                  INTEL/LEGAL → Facilitering,
+                  MIL/MAR/INFRA/NUCLEAR → Resurser,
+                  DRONE/GPS → Tillfälle.
+                </div>
+
+                <div class="segRow">
+                  <div class="seg active" id="modeAuto">Auto</div>
+                  <div class="seg" id="modeManual">Manuell</div>
+                  <div class="seg" id="modeMix">Mix</div>
+                </div>
+
+                <div class="barBox">
+                  <div class="barTop"><div class="barName">Intentioner</div><div class="barVal"><span id="vInt">0</span></div></div>
+                  <input type="range" id="sInt" min="0" max="100" step="1" value="0">
+                  <div class="track"><div class="fill" id="fInt"></div></div>
+                </div>
+
+                <div class="barBox">
+                  <div class="barTop"><div class="barName">Facilitering</div><div class="barVal"><span id="vFac">0</span></div></div>
+                  <input type="range" id="sFac" min="0" max="100" step="1" value="0">
+                  <div class="track"><div class="fill" id="fFac"></div></div>
+                </div>
+
+                <div class="barBox">
+                  <div class="barTop"><div class="barName">Resurser</div><div class="barVal"><span id="vRes">0</span></div></div>
+                  <input type="range" id="sRes" min="0" max="100" step="1" value="0">
+                  <div class="track"><div class="fill" id="fRes"></div></div>
+                </div>
+
+                <div class="barBox">
+                  <div class="barTop"><div class="barName">Tillfälle</div><div class="barVal"><span id="vTil">0</span></div></div>
+                  <input type="range" id="sTil" min="0" max="100" step="1" value="0">
+                  <div class="track"><div class="fill" id="fTil"></div></div>
+                </div>
+
+                <div class="small" style="margin-top:10px">
+                  Auto: reglagen visar beräknade värden (låsta). Manuell: du styr 0–100.
+                  Mix: reglagen är offset (0–100 där 50 = 0-offset).
+                </div>
               </div>
-              <div class="hint">Dra noder • Zooma (hjul) • Panorera (dra i tom yta)</div>
-              <div id="graph"></div>
+            </div>
+
+            <!-- Output -->
+            <div class="card" style="min-height:0">
+              <div class="head"><h2>Visualisering</h2><span class="pill" id="pillScore">–</span></div>
+              <div class="body scroll">
+                <svg id="radar" viewBox="0 0 360 300"></svg>
+
+                <div class="pill" style="margin-top:10px">Topp 12 (auto-baserat)</div>
+                <div class="list" id="topList"></div>
+              </div>
             </div>
           </div>
         </div>
 
       </div>
-    </div>
+    </section>
+  </main>
 
-    <!-- INTENTIONER VIEW -->
-    <div class="view" id="viewIntent">
-      <div class="intentGrid">
-        <!-- Controls -->
-        <div class="card">
-          <div class="head"><h2>Modellstyrning</h2><span class="pill" id="pillIntent">–</span></div>
-          <div class="body scroll">
+  <!-- Error capture -->
+  <script>
+    window.__APP_ERRORS__ = [];
+    function addStatusError(msg){
+      const m = String(msg || "Okänt fel");
+      window.__APP_ERRORS__.push(m);
+      const el = document.getElementById("statusErrors");
+      if(el){
+        el.textContent = window.__APP_ERRORS__.join("\n\n");
+        el.style.display = "block";
+      }
+    }
+    window.addEventListener("error", (e)=> addStatusError(e.message || e.error || e));
+    window.addEventListener("unhandledrejection", (e)=> addStatusError(e.reason || e));
+  </script>
 
-            <div class="kpiRow">
-              <div class="kpi">
-                <div class="v" id="kEvents">–</div>
-                <div class="t">Events i beräkning</div>
-              </div>
-              <div class="kpi">
-                <div class="v" id="kMode">Auto</div>
-                <div class="t">Läge</div>
-              </div>
-            </div>
+  <script src="./events.js"
+          onerror="addStatusError('events.js kunde inte laddas (404/sökväg).')"></script>
 
-            <div class="segRow" style="margin-top:12px">
-              <div class="seg active" data-mode="auto" id="modeAuto">Auto (från EVENTS)</div>
-              <div class="seg" data-mode="manual" id="modeManual">Manuell (reglage)</div>
-              <div class="seg" data-mode="mix" id="modeMix">Mix (auto + offset)</div>
-            </div>
-
-            <div class="small" style="margin-top:10px">
-              Auto räknar dimensioner från dina kategorier: HYBRID/POLICY/TERROR → Intentioner,
-              INTEL/LEGAL → Facilitering, MIL/MAR/INFRA/NUCLEAR → Resurser, DRONE/GPS → Tillfälle.
-              Manuell låter dig sätta egna 0–100. Mix lägger på ett offset.
-            </div>
-
-            <div class="barBox">
-              <div class="barTop">
-                <div class="barName">Intentioner</div>
-                <div class="barVal"><span id="vInt">0</span></div>
-              </div>
-              <input type="range" id="sInt" min="0" max="100" step="1" value="0">
-              <div class="track"><div class="fill" id="fInt"></div></div>
-            </div>
-
-            <div class="barBox">
-              <div class="barTop">
-                <div class="barName">Facilitering</div>
-                <div class="barVal"><span id="vFac">0</span></div>
-              </div>
-              <input type="range" id="sFac" min="0" max="100" step="1" value="0">
-              <div class="track"><div class="fill" id="fFac"></div></div>
-            </div>
-
-            <div class="barBox">
-              <div class="barTop">
-                <div class="barName">Resurser</div>
-                <div class="barVal"><span id="vRes">0</span></div>
-              </div>
-              <input type="range" id="sRes" min="0" max="100" step="1" value="0">
-              <div class="track"><div class="fill" id="fRes"></div></div>
-            </div>
-
-            <div class="barBox">
-              <div class="barTop">
-                <div class="barName">Tillfälle</div>
-                <div class="barVal"><span id="vTil">0</span></div>
-              </div>
-              <input type="range" id="sTil" min="0" max="100" step="1" value="0">
-              <div class="track"><div class="fill" id="fTil"></div></div>
-            </div>
-
-            <div class="small" style="margin-top:10px">
-              I läge <b>Auto</b> är reglagen låsta (visar beräkningen).  
-              I läge <b>Manuell</b> är de aktiva.  
-              I läge <b>Mix</b> är reglagen aktiva och tolkas som <b>offset</b> (+/– runt auto).
-            </div>
-
-          </div>
-        </div>
-
-        <!-- Output -->
-        <div class="card">
-          <div class="head"><h2>Visualisering</h2><span class="pill" id="pillScore">–</span></div>
-          <div class="body scroll">
-
-            <div class="pill">Radar</div>
-            <svg id="radar" viewBox="0 0 360 300"></svg>
-
-            <div style="margin-top:12px" class="pill">Största bidrag (topp 12, auto-baserat)</div>
-            <div class="list" id="topList"></div>
-
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- events.js måste finnas här -->
-  <script src="./events.js"></script>
-  <script src="./app.js"></script>
+  <script src="./app.js"
+          onerror="addStatusError('app.js kunde inte laddas (404/sökväg).')"></script>
 </body>
 </html>
